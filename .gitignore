@@ -1,0 +1,7 @@
+build/
+.gradle/
+*.log
+.env
+.idea/
+.DS_Store
+**/application-local-secrets.yml

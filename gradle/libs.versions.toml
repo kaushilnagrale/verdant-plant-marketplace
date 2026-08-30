@@ -1,0 +1,21 @@
+[versions]
+springBoot = "4.1.1"
+springDepMgmt = "1.1.7"
+testcontainers = "2.0.5"
+archunit = "1.5.0"
+jqwik = "1.9.3"
+
+[libraries]
+testcontainers-bom      = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
+testcontainers-postgres = { module = "org.testcontainers:testcontainers-postgresql" }
+testcontainers-junit    = { module = "org.testcontainers:testcontainers-junit-jupiter" }
+archunit                = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+jqwik                   = { module = "net.jqwik:jqwik", version.ref = "jqwik" }
+postgresql              = { module = "org.postgresql:postgresql" }
+flyway-core             = { module = "org.flywaydb:flyway-core" }
+flyway-postgres         = { module = "org.flywaydb:flyway-database-postgresql" }
+assertj                 = { module = "org.assertj:assertj-core" }
+
+[plugins]
+springBoot    = { id = "org.springframework.boot", version.ref = "springBoot" }
+springDepMgmt = { id = "io.spring.dependency-management", version.ref = "springDepMgmt" }
