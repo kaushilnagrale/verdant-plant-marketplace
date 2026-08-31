@@ -17,4 +17,5 @@ dependencies {
     testImplementation(rootProject.libs.archunit)
     testImplementation(rootProject.libs.jqwik)
     testImplementation("org.springframework.security:spring-security-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 }

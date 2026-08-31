@@ -34,6 +34,17 @@ public class ListingController {
         return listings.findBySellerId(currentSellerId(jwt));
     }
 
+    @GetMapping("/{id}")
+    public Listing get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        UUID sellerId = currentSellerId(jwt);
+        Listing listing = listings.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!listing.getSellerId().equals(sellerId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your listing");
+        }
+        return listing;
+    }
+
     private UUID currentSellerId(Jwt jwt) {
         return sellerUsers.findBySubjectId(jwt.getSubject())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "No seller mapped to this account"))
