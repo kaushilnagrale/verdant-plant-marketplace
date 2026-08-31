@@ -1,0 +1,13 @@
+spring:
+  application.name: verdant
+  jpa:
+    hibernate.ddl-auto: validate
+    properties.hibernate.format_sql: true
+    open-in-view: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+management:
+  endpoints.web.exposure.include: health,info,metrics
+  endpoint.health.probes.enabled: true

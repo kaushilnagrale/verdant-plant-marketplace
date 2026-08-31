@@ -9,7 +9,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-aspectj")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.springframework.boot:spring-boot-starter-security")
-    implementation(rootProject.libs.flyway.core)
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation(rootProject.libs.flyway.postgres)
     runtimeOnly(rootProject.libs.postgresql)
 
