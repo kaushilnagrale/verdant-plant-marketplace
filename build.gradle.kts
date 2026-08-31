@@ -28,6 +28,7 @@ subprojects {
     dependencies {
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")
         "testImplementation"(rootProject.libs.assertj)
+        "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
     }
 
     tasks.withType<Test> {
