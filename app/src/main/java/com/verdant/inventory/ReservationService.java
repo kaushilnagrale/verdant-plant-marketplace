@@ -74,4 +74,25 @@ public class ReservationService {
         }
         return released;
     }
+
+    /**
+     * Compensating action for checkout: releases every reservation under one
+     * order (e.g. because payment-order creation failed after stock was
+     * already reserved). Not the expiry sweep - this runs immediately, not
+     * because a window passed.
+     */
+    public int releaseByOrder(UUID orderId) {
+        List<UUID> reservationIds = jdbc.queryForList("""
+            SELECT id FROM reservations
+             WHERE order_id = ? AND released_at IS NULL AND fulfilled_at IS NULL
+            """, UUID.class, orderId);
+
+        int released = 0;
+        for (UUID id : reservationIds) {
+            if (release(id)) {
+                released++;
+            }
+        }
+        return released;
+    }
 }
