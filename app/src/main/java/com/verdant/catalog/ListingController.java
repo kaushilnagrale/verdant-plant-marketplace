@@ -7,6 +7,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import com.verdant.catalog.mapping.ListingMappingWorker;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,19 +19,23 @@ public class ListingController {
     private final ListingRepository listings;
     private final SellerUserRepository sellerUsers;
     private final ListingImageService imageService;
+    private final ListingMappingWorker mappingWorker;
 
     public ListingController(ListingRepository listings, SellerUserRepository sellerUsers,
-                              ListingImageService imageService) {
+                              ListingImageService imageService, ListingMappingWorker mappingWorker) {
         this.listings = listings;
         this.sellerUsers = sellerUsers;
         this.imageService = imageService;
+        this.mappingWorker = mappingWorker;
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Listing create(@AuthenticationPrincipal Jwt jwt, @RequestBody CreateListingRequest request) {
         UUID sellerId = currentSellerId(jwt);
-        return listings.save(new Listing(sellerId, request.rawTitle(), request.priceAmount()));
+        Listing saved = listings.save(new Listing(sellerId, request.rawTitle(), request.priceAmount()));
+        mappingWorker.mapListing(saved.getId(), request.rawTitle(), null);
+        return saved;
     }
 
     @GetMapping

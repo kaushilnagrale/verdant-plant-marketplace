@@ -29,3 +29,8 @@ aws:
     region: ap-south-1
     access-key: test
     secret-key: test
+
+verdant:
+  mapping:
+    auto-threshold: 0.030
+    review-threshold: 0.012
