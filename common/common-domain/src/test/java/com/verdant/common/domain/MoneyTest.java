@@ -20,4 +20,8 @@ class MoneyTest {
         assertThatThrownBy(() -> Money.of("1").plus(usd))
             .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test void times_multipliesByQuantity() {
+        assertThat(Money.of("149.99").times(3)).isEqualTo(Money.of("449.97"));
+    }
 }

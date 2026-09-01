@@ -24,6 +24,11 @@ public record Money(BigDecimal amount, Currency currency) {
     public Money negate()       { return new Money(amount.negate(), currency); }
     public boolean isZero()     { return amount.signum() == 0; }
 
+    /** Line-item total: unit price times a quantity (e.g. cart pricing). */
+    public Money times(int quantity) {
+        return new Money(amount.multiply(BigDecimal.valueOf(quantity)), currency);
+    }
+
     private void require(Money o) {
         if (!currency.equals(o.currency))
             throw new IllegalArgumentException("Currency mismatch: " + currency + " vs " + o.currency);
