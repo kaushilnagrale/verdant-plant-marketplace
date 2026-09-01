@@ -19,6 +19,9 @@ dependencies {
     implementation("com.ibm.icu:icu4j:77.1")
     implementation("org.apache.commons:commons-text:1.15.0")
 
+    implementation(platform("org.springframework.ai:spring-ai-bom:2.0.1"))
+    implementation("org.springframework.ai:spring-ai-starter-model-transformers")
+
     testImplementation(project(":common:common-testing"))
     testImplementation(rootProject.libs.archunit)
     testImplementation(rootProject.libs.jqwik)

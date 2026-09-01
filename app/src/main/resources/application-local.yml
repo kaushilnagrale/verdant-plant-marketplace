@@ -8,6 +8,15 @@ spring:
     port: 6379
   security.oauth2.resourceserver.jwt:
     issuer-uri: http://localhost:8081/realms/verdant
+  ai:
+    model:
+      embedding: transformers
+    embedding:
+      transformer:
+        onnx:
+          model-uri: https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/main/onnx/model.onnx
+        tokenizer:
+          uri: https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/main/tokenizer.json
 
 logging.level:
   com.verdant: DEBUG
