@@ -8,6 +8,15 @@ spring:
     port: ${REDIS_PORT}
   security.oauth2.resourceserver.jwt:
     issuer-uri: ${OIDC_ISSUER_URI}
+  ai:
+    model:
+      embedding: transformers
+    embedding:
+      transformer:
+        onnx:
+          model-uri: ${EMBEDDING_MODEL_URI}
+        tokenizer:
+          uri: ${EMBEDDING_TOKENIZER_URI}
 
 aws:
   s3:

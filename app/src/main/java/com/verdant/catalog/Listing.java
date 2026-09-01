@@ -28,6 +28,18 @@ public class Listing {
     @Column(name = "created_at", insertable = false, updatable = false)
     private Instant createdAt;
 
+    // Written only by ListingMappingWorker/ModerationController via raw JDBC,
+    // never by JPA - insertable/updatable false so a stray entity save()
+    // elsewhere can never blast a stale value back over an async update.
+    @Column(name = "canonical_product_id", insertable = false, updatable = false)
+    private UUID canonicalProductId;
+
+    @Column(name = "mapping_confidence", insertable = false, updatable = false)
+    private Float mappingConfidence;
+
+    @Column(name = "mapping_status", insertable = false, updatable = false)
+    private String mappingStatus;
+
     protected Listing() { } // required by JPA
 
     public Listing(UUID sellerId, String rawTitle, BigDecimal priceAmount) {
@@ -42,4 +54,7 @@ public class Listing {
     public BigDecimal getPriceAmount() { return priceAmount; }
     public Integer getHandlingTimeHours() { return handlingTimeHours; }
     public Instant getCreatedAt() { return createdAt; }
+    public UUID getCanonicalProductId() { return canonicalProductId; }
+    public Float getMappingConfidence() { return mappingConfidence; }
+    public String getMappingStatus() { return mappingStatus; }
 }

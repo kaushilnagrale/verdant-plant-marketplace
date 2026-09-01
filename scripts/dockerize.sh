@@ -9,4 +9,6 @@ docker run --rm -p 8080:8080 \
   -e REDIS_HOST=host.docker.internal -e REDIS_PORT=6379 \
   -e OIDC_ISSUER_URI=http://host.docker.internal:8081/realms/verdant \
   -e S3_BUCKET=verdant-images -e AWS_REGION=ap-south-1 \
+  -e EMBEDDING_MODEL_URI=https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/main/onnx/model.onnx \
+  -e EMBEDDING_TOKENIZER_URI=https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/main/tokenizer.json \
   verdant:local
