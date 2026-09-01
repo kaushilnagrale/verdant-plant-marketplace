@@ -13,6 +13,10 @@ dependencies {
     implementation(rootProject.libs.flyway.postgres)
     runtimeOnly(rootProject.libs.postgresql)
 
+    implementation(platform("software.amazon.awssdk:bom:2.46.7"))
+    implementation("software.amazon.awssdk:s3")
+    implementation("net.coobird:thumbnailator:0.4.20")
+
     testImplementation(project(":common:common-testing"))
     testImplementation(rootProject.libs.archunit)
     testImplementation(rootProject.libs.jqwik)

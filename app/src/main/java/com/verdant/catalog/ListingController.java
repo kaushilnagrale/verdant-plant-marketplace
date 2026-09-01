@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -16,10 +17,13 @@ public class ListingController {
 
     private final ListingRepository listings;
     private final SellerUserRepository sellerUsers;
+    private final ListingImageService imageService;
 
-    public ListingController(ListingRepository listings, SellerUserRepository sellerUsers) {
+    public ListingController(ListingRepository listings, SellerUserRepository sellerUsers,
+                              ListingImageService imageService) {
         this.listings = listings;
         this.sellerUsers = sellerUsers;
+        this.imageService = imageService;
     }
 
     @PostMapping
@@ -43,6 +47,19 @@ public class ListingController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your listing");
         }
         return listing;
+    }
+
+    @PostMapping("/{id}/images")
+    @ResponseStatus(HttpStatus.CREATED)
+    public void uploadImage(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                             @RequestParam("file") MultipartFile file) {
+        UUID sellerId = currentSellerId(jwt);
+        Listing listing = listings.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!listing.getSellerId().equals(sellerId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your listing");
+        }
+        imageService.upload(id, file);
     }
 
     private UUID currentSellerId(Jwt jwt) {

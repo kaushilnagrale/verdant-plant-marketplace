@@ -12,3 +12,11 @@ spring:
 logging.level:
   com.verdant: DEBUG
   org.hibernate.SQL: DEBUG
+
+aws:
+  s3:
+    endpoint: http://localhost:4566
+    bucket: verdant-images
+    region: ap-south-1
+    access-key: test
+    secret-key: test
