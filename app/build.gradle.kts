@@ -16,6 +16,8 @@ dependencies {
     implementation(platform("software.amazon.awssdk:bom:2.46.7"))
     implementation("software.amazon.awssdk:s3")
     implementation("net.coobird:thumbnailator:0.4.20")
+    implementation("com.ibm.icu:icu4j:77.1")
+    implementation("org.apache.commons:commons-text:1.15.0")
 
     testImplementation(project(":common:common-testing"))
     testImplementation(rootProject.libs.archunit)
