@@ -1,6 +1,7 @@
 package com.verdant.catalog.mapping;
 
 import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -13,6 +14,15 @@ public class HybridRetriever {
 
     private final JdbcTemplate jdbc;
     private final EmbeddingModel embeddings;
+
+    /**
+     * Cosine distance ceiling (0 = identical, 2 = opposite). Vector search
+     * always returns *something* as "closest" among however many rows exist,
+     * even for a completely unrelated title - this floor rejects candidates
+     * that only won by default, not because they're actually close.
+     */
+    @Value("${verdant.mapping.vector-similarity-floor:0.6}")
+    private double similarityFloor;
 
     public HybridRetriever(JdbcTemplate jdbc, EmbeddingModel embeddings) {
         this.jdbc = jdbc;
@@ -30,24 +40,34 @@ public class HybridRetriever {
         return jdbc.queryForList("""
             SELECT id FROM canonical_products
              WHERE embedding IS NOT NULL
+               AND embedding <=> ?::vector < ?
              ORDER BY embedding <=> ?::vector
              LIMIT ?
-            """, UUID.class, vec, limit);
+            """, UUID.class, vec, similarityFloor, vec, limit);
     }
 
     private List<UUID> lexicalSearch(String text, int limit) {
         // Uses immutable_product_search_text(...) so this matches the
         // canonical_products_fts GIN index expression exactly (V5) and
         // is actually served by the index rather than a full table scan.
+        //
+        // OR (|), not plainto_tsquery's implicit AND: a real listing title
+        // has several words irrelevant to the plant itself ("asli", "with
+        // glass bowl"), and requiring every word to match sinks the whole
+        // query to zero results even when the one word that matters
+        // ("sansevieria") is right there.
+        String orQuery = String.join(" | ", text.trim().split("\\s+"));
+        if (orQuery.isBlank()) return List.of();
+
         return jdbc.queryForList("""
             SELECT id FROM canonical_products
              WHERE immutable_product_search_text(display_name, botanical_name, common_names)
-                   @@ plainto_tsquery('simple', ?)
+                   @@ to_tsquery('simple', ?)
              ORDER BY ts_rank(
                    immutable_product_search_text(display_name, botanical_name, common_names),
-                   plainto_tsquery('simple', ?)) DESC
+                   to_tsquery('simple', ?)) DESC
              LIMIT ?
-            """, UUID.class, text, text, limit);
+            """, UUID.class, orQuery, orQuery, limit);
     }
 
     /** Reciprocal rank fusion: uses rank position, not raw score. */

@@ -34,5 +34,6 @@ subprojects {
     tasks.withType<Test> {
         useJUnitPlatform()
         testLogging { events("passed", "skipped", "failed") }
+        maxHeapSize = "3g"
     }
 }
