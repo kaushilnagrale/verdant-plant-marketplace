@@ -1,4 +1,6 @@
 spring:
+  config:
+    import: "optional:classpath:application-local-secrets.yml"
   datasource:
     url: jdbc:postgresql://localhost:5433/verdant
     username: verdant

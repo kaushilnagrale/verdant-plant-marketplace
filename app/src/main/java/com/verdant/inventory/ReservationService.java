@@ -31,6 +31,7 @@ public class ReservationService {
                SET released_at = now()
              WHERE id = ?
                AND released_at IS NULL
+               AND fulfilled_at IS NULL
             RETURNING listing_id, quantity
             """, reservationId);
 
@@ -52,10 +53,17 @@ public class ReservationService {
         return true;
     }
 
-    /** Sweeps every expired, unreleased reservation and releases it. */
+    /**
+     * Sweeps every expired, unreleased reservation and releases it - but
+     * never one that was already fulfilled by a real sale. Without the
+     * fulfilled_at guard, a reservation whose payment succeeded would still
+     * get its stock released back onto the shelf once its 15-minute window
+     * passed, reselling a plant that was already bought.
+     */
     public int releaseExpired() {
         List<UUID> expiredIds = jdbc.queryForList("""
-            SELECT id FROM reservations WHERE expires_at < now() AND released_at IS NULL
+            SELECT id FROM reservations
+             WHERE expires_at < now() AND released_at IS NULL AND fulfilled_at IS NULL
             """, UUID.class);
 
         int released = 0;

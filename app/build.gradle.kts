@@ -22,6 +22,8 @@ dependencies {
     implementation(platform("org.springframework.ai:spring-ai-bom:2.0.1"))
     implementation("org.springframework.ai:spring-ai-starter-model-transformers")
 
+    implementation("com.razorpay:razorpay-java:1.4.8")
+
     testImplementation(project(":common:common-testing"))
     testImplementation(rootProject.libs.archunit)
     testImplementation(rootProject.libs.jqwik)

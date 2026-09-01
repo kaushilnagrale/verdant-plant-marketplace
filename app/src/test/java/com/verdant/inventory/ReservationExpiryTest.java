@@ -78,6 +78,22 @@ class ReservationExpiryTest extends IntegrationTestBase {
     }
 
     @Test
+    void releaseExpired_neverTouchesAFulfilledReservation() {
+        // Simulates a reservation whose payment already succeeded (the
+        // checkout flow will set fulfilled_at for real). Even though its
+        // window has passed, it must never be swept back onto the shelf -
+        // that stock was legitimately sold.
+        UUID fulfilled = insertReservation(4, true);
+        jdbc.update("UPDATE reservations SET fulfilled_at = now() WHERE id = ?", fulfilled);
+
+        assertThat(reservations.release(fulfilled)).isFalse();
+        assertThat(currentStock()).isEqualTo(10); // untouched, no credit back
+
+        reservations.releaseExpired();
+        assertThat(currentStock()).isEqualTo(10); // still untouched after a sweep
+    }
+
+    @Test
     void release_isIdempotent_secondCallCreditsNothing() {
         // Calls release() directly on one known reservation rather than going
         // through the global releaseExpired() sweep, so this stays exact and
