@@ -10,14 +10,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
- * The buyer's client hands back razorpay_order_id/payment_id/signature after
- * paying - none of that is trustworthy on its own (anyone can POST made-up
- * values). The signature is an HMAC over the two ids, computed with our Key
- * Secret, which only Razorpay and we know - so a signature that checks out
- * is proof Razorpay actually issued it, not a claim we're taking on faith.
+ * Two independent paths can report "payment succeeded": the buyer's client
+ * calling back after Razorpay's checkout widget closes (verifyPayment), and
+ * Razorpay's own webhook calling our server directly (markPaidByRazorpayOrderId)
+ * as a backup for when the client never calls back at all (tab closed,
+ * app crashed). Both converge on the same guarded, idempotent core so a
+ * given payment is only ever processed once, however it's reported.
  */
 @Service
 public class PaymentVerificationService {
@@ -30,31 +32,58 @@ public class PaymentVerificationService {
         this.jdbc = jdbc;
     }
 
-    /**
-     * Marking the order PAID and marking its reservations fulfilled happen in
-     * one transaction on purpose: a crash between the two would leave a paid
-     * order whose stock the expiry sweep could still wrongly release back
-     * onto the shelf (the exact gap fulfilled_at exists to close).
-     */
+    /** Client-callback path: proof is the checkout signature (HMAC of order_id|payment_id with our Key Secret). */
     @Transactional
     public void verifyPayment(UUID orderId, PaymentVerificationRequest request) {
         if (!signatureIsValid(request)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid payment signature");
         }
 
-        // Guarded, atomic UPDATE: only an order still in CREATED state gets
-        // marked PAID here. A retried/duplicate verification call for an
-        // already-processed order sees 0 rows and does nothing further -
-        // idempotent by construction, same shape as reservation release.
+        boolean marked = markPaidAndFulfill(orderId, request.razorpayOrderId(), request.razorpayPaymentId());
+        if (!marked) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Order is not payable (already processed, or order id mismatch)");
+        }
+    }
+
+    /**
+     * Webhook path: the caller (RazorpayWebhookController) has already
+     * verified the webhook signature over the raw request body before this
+     * is called, so razorpay_order_id itself is trusted here - we look up
+     * our order by it directly rather than requiring a path orderId.
+     * Returns false (not an error) for an unknown/already-processed order,
+     * since a webhook retry for something we've already handled is normal.
+     */
+    @Transactional
+    public boolean markPaidByRazorpayOrderId(String razorpayOrderId, String razorpayPaymentId) {
+        List<UUID> matches = jdbc.queryForList(
+            "SELECT id FROM orders WHERE razorpay_order_id = ?", UUID.class, razorpayOrderId);
+        if (matches.isEmpty()) {
+            return false;
+        }
+        return markPaidAndFulfill(matches.get(0), razorpayOrderId, razorpayPaymentId);
+    }
+
+    /**
+     * Marking the order PAID and marking its reservations fulfilled happen in
+     * one transaction on purpose: a crash between the two would leave a paid
+     * order whose stock the expiry sweep could still wrongly release back
+     * onto the shelf (the exact gap fulfilled_at exists to close).
+     *
+     * The guarded, atomic UPDATE (WHERE status = 'CREATED') means a retried
+     * or duplicate call - from either path, or both paths firing for the
+     * same payment - only ever processes the order once. 0 rows = already
+     * handled, nothing more to do.
+     */
+    private boolean markPaidAndFulfill(UUID orderId, String razorpayOrderId, String razorpayPaymentId) {
         int rowsUpdated = jdbc.update("""
             UPDATE orders
                SET status = 'PAID', razorpay_payment_id = ?, paid_at = now()
              WHERE id = ? AND status = 'CREATED' AND razorpay_order_id = ?
-            """, request.razorpayPaymentId(), orderId, request.razorpayOrderId());
+            """, razorpayPaymentId, orderId, razorpayOrderId);
 
         if (rowsUpdated == 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                "Order is not payable (already processed, or order id mismatch)");
+            return false;
         }
 
         jdbc.update("""
@@ -62,6 +91,7 @@ public class PaymentVerificationService {
                SET fulfilled_at = now()
              WHERE order_id = ? AND released_at IS NULL AND fulfilled_at IS NULL
             """, orderId);
+        return true;
     }
 
     private boolean signatureIsValid(PaymentVerificationRequest request) {

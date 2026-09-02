@@ -26,4 +26,5 @@ aws:
 razorpay:
   key-id: rzp_test_dummy
   key-secret: test-secret-for-signature-verification-only
+  webhook-secret: test-webhook-secret-for-signature-verification-only
 
