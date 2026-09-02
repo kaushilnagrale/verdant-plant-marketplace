@@ -19,3 +19,11 @@ aws:
     region: ap-south-1
     access-key: test
     secret-key: test
+
+# Not a real Razorpay secret - signature verification is pure HMAC math, no
+# network call, so tests compute a signature with this same value and check
+# our code accepts/rejects correctly. Never used to talk to Razorpay itself.
+razorpay:
+  key-id: rzp_test_dummy
+  key-secret: test-secret-for-signature-verification-only
+
