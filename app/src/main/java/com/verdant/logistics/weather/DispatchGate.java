@@ -2,6 +2,7 @@ package com.verdant.logistics.weather;
 
 import com.verdant.common.alerting.Alerting;
 import com.verdant.common.flags.FeatureFlags;
+import com.verdant.common.notification.NotificationService;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -31,15 +32,18 @@ public class DispatchGate {
     private final DispatchHoldRepository holds;
     private final Alerting alerting;
     private final MeterRegistry meters;
+    private final NotificationService notifications;
 
     public DispatchGate(JdbcTemplate jdbc, FeatureFlags flags, WeatherForecastRepository forecasts,
-                         DispatchHoldRepository holds, Alerting alerting, MeterRegistry meters) {
+                         DispatchHoldRepository holds, Alerting alerting, MeterRegistry meters,
+                         NotificationService notifications) {
         this.jdbc = jdbc;
         this.flags = flags;
         this.forecasts = forecasts;
         this.holds = holds;
         this.alerting = alerting;
         this.meters = meters;
+        this.notifications = notifications;
     }
 
     public DispatchDecision evaluate(UUID shipmentId) {
@@ -84,7 +88,11 @@ public class DispatchGate {
             return DispatchDecision.proceed();
         }
         LocalDate maxHoldUntil = LocalDate.now().plusDays(MAX_HOLD_DAYS);
-        holds.recordReal(shipmentId, reason, f.snapshot(), maxHoldUntil);
+        boolean newlyCreated = holds.recordReal(shipmentId, reason, f.snapshot(), maxHoldUntil);
+        jdbc.update("UPDATE shipments SET status = 'HELD' WHERE id = ?", shipmentId);
+        if (newlyCreated) {
+            notifications.notifyBuyer(shipmentId, "HOLD_PLACED"); // once per hold, not on every re-evaluation while it's still open
+        }
         return DispatchDecision.hold(reason, f.snapshot(), maxHoldUntil);
     }
 
