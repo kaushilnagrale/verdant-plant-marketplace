@@ -12,7 +12,13 @@ docker run --rm -p 8080:8080 \
   -e S3_BUCKET=verdant-images -e AWS_REGION=ap-south-1 \
   -e EMBEDDING_MODEL_URI=https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/main/onnx/model.onnx \
   -e EMBEDDING_TOKENIZER_URI=https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/main/tokenizer.json \
-  -e RAZORPAY_KEY_ID=rzp_test_dummy \
+  -e RAZORPAY_KEY_ID=rzp_live_dummy \
   -e RAZORPAY_KEY_SECRET=dummy-secret-for-dockerize-smoketest-only \
   -e RAZORPAY_WEBHOOK_SECRET=dummy-webhook-secret-for-dockerize-smoketest-only \
+  -e CORS_ALLOWED_ORIGINS=http://localhost:5173 \
   verdant:local
+# Note: RAZORPAY_KEY_ID is deliberately rzp_live_-shaped (not a real key) -
+# KeyModeGuard (added Day 35) refuses to boot the prod profile with a
+# rzp_test_ key, so a genuinely-test-shaped dummy here would fail this
+# smoke test on purpose. A real prod deploy still requires the real live
+# key from a proper secrets manager, never a value in this script.
