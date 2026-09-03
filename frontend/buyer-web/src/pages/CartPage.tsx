@@ -47,12 +47,17 @@ export function CartPage() {
       setError("Enter your email to place the order.");
       return;
     }
+    if (pincode.length !== 6) {
+      setError("Enter a valid 6-digit delivery pincode before placing the order.");
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
       const result = await checkout(
         email,
         items.map((i) => ({ listingId: i.listingId, quantity: i.quantity })),
+        pincode,
       );
 
       // The buyer's browser talks to Razorpay directly with the public key

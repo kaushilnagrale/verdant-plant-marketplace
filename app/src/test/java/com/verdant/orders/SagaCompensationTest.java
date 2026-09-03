@@ -8,6 +8,7 @@ import com.verdant.checkout.CheckoutService;
 import com.verdant.checkout.PaymentVerificationRequest;
 import com.verdant.checkout.PaymentVerificationService;
 import com.verdant.common.domain.Money;
+import com.verdant.common.testing.AllocationFixtures;
 import com.verdant.common.testing.IntegrationTestBase;
 import com.verdant.finance.service.AccountResolver;
 import com.verdant.finance.service.LedgerService;
@@ -70,17 +71,15 @@ class SagaCompensationTest extends IntegrationTestBase {
         paymentGateway.reset();
         logistics.reset();
 
-        sellerId = jdbc.queryForObject(
-            "INSERT INTO sellers (business_name, status) VALUES ('Saga Test Nursery', 'APPROVED') RETURNING id",
-            UUID.class);
-        listingId = jdbc.queryForObject("""
-            INSERT INTO listings (seller_id, raw_title, price_amount) VALUES (?, 'Saga Test Plant', 199.00) RETURNING id
-            """, UUID.class, sellerId);
-        jdbc.update("INSERT INTO inventory (listing_id, quantity, buffer) VALUES (?, 5, 0)", listingId);
+        AllocationFixtures.seedLocalPincodeZone(jdbc);
+        sellerId = AllocationFixtures.seedApprovedSeller(jdbc, "Saga Test Nursery");
+        UUID canonicalProductId = AllocationFixtures.seedCanonicalProduct(jdbc, "Fixture Widget Saga");
+        listingId = AllocationFixtures.seedListing(jdbc, sellerId, canonicalProductId, "Fixture Widget Saga", "199.00", 5);
     }
 
     private CheckoutResult checkoutOneItem() {
-        return checkoutService.checkout(new CheckoutRequest(BUYER_EMAIL, List.of(new CartLine(listingId, 1))));
+        return checkoutService.checkout(new CheckoutRequest(BUYER_EMAIL, List.of(new CartLine(listingId, 1)),
+            AllocationFixtures.LOCAL_PINCODE));
     }
 
     private void payFor(CheckoutResult checkout) throws Exception {

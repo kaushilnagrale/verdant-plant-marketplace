@@ -2,6 +2,7 @@ package com.verdant.checkout;
 
 import com.razorpay.Utils;
 import com.verdant.cart.CartLine;
+import com.verdant.common.testing.AllocationFixtures;
 import com.verdant.common.testing.IntegrationTestBase;
 import com.verdant.payment.RazorpayProperties;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,13 +36,10 @@ class RazorpayWebhookControllerTest extends IntegrationTestBase {
 
     @BeforeEach
     void seedListing() {
-        UUID sellerId = jdbc.queryForObject(
-            "INSERT INTO sellers (business_name, status) VALUES ('Webhook Test Nursery', 'APPROVED') RETURNING id",
-            UUID.class);
-        listingId = jdbc.queryForObject("""
-            INSERT INTO listings (seller_id, raw_title, price_amount) VALUES (?, 'Webhook Test Plant', 149.00) RETURNING id
-            """, UUID.class, sellerId);
-        jdbc.update("INSERT INTO inventory (listing_id, quantity, buffer) VALUES (?, 5, 0)", listingId);
+        AllocationFixtures.seedLocalPincodeZone(jdbc);
+        UUID sellerId = AllocationFixtures.seedApprovedSeller(jdbc, "Webhook Test Nursery");
+        UUID canonicalProductId = AllocationFixtures.seedCanonicalProduct(jdbc, "Fixture Widget Webhook");
+        listingId = AllocationFixtures.seedListing(jdbc, sellerId, canonicalProductId, "Fixture Widget Webhook", "149.00", 5);
     }
 
     private String paymentCapturedPayload(String razorpayOrderId, String paymentId) {
@@ -53,7 +51,7 @@ class RazorpayWebhookControllerTest extends IntegrationTestBase {
     @Test
     void webhook_withValidSignature_marksOrderPaidAndFulfillsReservation() throws Exception {
         CheckoutResult checkout = checkoutService.checkout(
-            new CheckoutRequest("buyer@example.com", List.of(new CartLine(listingId, 1))));
+            new CheckoutRequest("buyer@example.com", List.of(new CartLine(listingId, 1)), AllocationFixtures.LOCAL_PINCODE));
         String paymentId = "pay_webhook_" + UUID.randomUUID();
         String body = paymentCapturedPayload(checkout.razorpayOrderId(), paymentId);
         String signature = Utils.getHash(body, razorpayProps.webhookSecret());
@@ -76,7 +74,7 @@ class RazorpayWebhookControllerTest extends IntegrationTestBase {
     @Test
     void webhook_withTamperedSignature_isRejected_orderStaysUnpaid() throws Exception {
         CheckoutResult checkout = checkoutService.checkout(
-            new CheckoutRequest("buyer@example.com", List.of(new CartLine(listingId, 1))));
+            new CheckoutRequest("buyer@example.com", List.of(new CartLine(listingId, 1)), AllocationFixtures.LOCAL_PINCODE));
         String paymentId = "pay_webhook_" + UUID.randomUUID();
         String body = paymentCapturedPayload(checkout.razorpayOrderId(), paymentId);
         String tamperedSignature = Utils.getHash(body, "wrong-secret");

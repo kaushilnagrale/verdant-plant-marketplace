@@ -23,6 +23,20 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                 .requestMatchers("/v1/cart/**", "/v1/checkout/**", "/v1/webhooks/**", "/v1/catalog/**").permitAll()
+                // Not obvious, found by real end-to-end testing (Week 7) rather
+                // than any prior test - every prior error-path test called the
+                // service method directly or used MockMvc, neither of which
+                // exercises Boot's actual error-dispatch machinery. A thrown
+                // ResponseStatusException on ANY permitAll endpoint gets
+                // internally redispatched to /error by Spring MVC's default
+                // error handling; /error re-enters this SAME filter chain, and
+                // without this line it isn't permitted - so every 4xx/5xx from
+                // a permitAll endpoint was silently masked as 401 Unauthorized
+                // (the OAuth2 resource server's entry point firing on the
+                // error dispatch, not the original request). Standard,
+                // well-known fix for this exact Spring Security + Boot
+                // interaction.
+                .requestMatchers("/error").permitAll()
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {}))
             // Stateless bearer-token API - no cookies/sessions carry auth, so

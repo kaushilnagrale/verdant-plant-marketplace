@@ -7,6 +7,8 @@ import com.verdant.inventory.InsufficientStockException;
 import com.verdant.inventory.InventoryService;
 import com.verdant.inventory.ReservationLine;
 import com.verdant.inventory.ReservationService;
+import com.verdant.orders.allocation.AllocationEngine;
+import com.verdant.orders.allocation.AllocationPlan;
 import com.verdant.payment.PaymentGateway;
 import com.verdant.payment.RazorpayProperties;
 import org.springframework.http.HttpStatus;
@@ -21,6 +23,7 @@ import java.time.Instant;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Reserving stock (a DB transaction) and creating a payment order (a network
@@ -39,18 +42,20 @@ public class CheckoutService {
     private final CartPricingService pricing;
     private final InventoryService inventory;
     private final ReservationService reservations;
+    private final AllocationEngine allocation;
     private final PaymentGateway paymentGateway;
     private final RazorpayProperties razorpayProps;
     private final JdbcTemplate jdbc;
     private final TransactionTemplate tx;
 
     public CheckoutService(CartPricingService pricing, InventoryService inventory,
-                            ReservationService reservations, PaymentGateway paymentGateway,
-                            RazorpayProperties razorpayProps, JdbcTemplate jdbc,
-                            PlatformTransactionManager txManager) {
+                            ReservationService reservations, AllocationEngine allocation,
+                            PaymentGateway paymentGateway, RazorpayProperties razorpayProps,
+                            JdbcTemplate jdbc, PlatformTransactionManager txManager) {
         this.pricing = pricing;
         this.inventory = inventory;
         this.reservations = reservations;
+        this.allocation = allocation;
         this.paymentGateway = paymentGateway;
         this.razorpayProps = razorpayProps;
         this.jdbc = jdbc;
@@ -58,10 +63,36 @@ public class CheckoutService {
     }
 
     public CheckoutResult checkout(CheckoutRequest request) {
-        CartQuote quote = pricing.priceCart(request.lines());
+        if (request.destinationPincode() == null || request.destinationPincode().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "destinationPincode is required");
+        }
+
+        // Real allocation, not just the pre-payment preview - a real order
+        // reserves against whichever seller's listing the engine actually
+        // chose (transit/quality/consolidation/cost scored across every
+        // APPROVED seller stocking the same canonical product), which may
+        // not be the specific listing the buyer clicked. Previously the
+        // preview and the real purchase disagreed: preview showed the split,
+        // checkout ignored it entirely and reserved the buyer's literal cart
+        // lines - the platform's core "route around a bad seller/transit
+        // window" thesis never actually applied to a real order.
+        AllocationPlan plan = allocation.plan(request.lines(), request.destinationPincode());
+        if (plan.requiresBuyerConfirmation()) {
+            String reasons = plan.unfulfillable().stream()
+                .map(u -> u.productName() + ": " + u.reason())
+                .collect(Collectors.joining("; "));
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Cart cannot be fully allocated - " + reasons);
+        }
+
+        List<CartLine> allocatedLines = plan.allocated().stream()
+            .map(a -> new CartLine(a.listingId(), a.quantity()))
+            .toList();
+
+        CartQuote quote = pricing.priceCart(allocatedLines);
         UUID orderId = UUID.randomUUID();
 
-        reserveStock(orderId, request.lines());
+        reserveStock(orderId, allocatedLines);
 
         String razorpayOrderId;
         try {
@@ -72,7 +103,7 @@ public class CheckoutService {
         }
 
         try {
-            persistOrder(orderId, request.buyerEmail(), quote, razorpayOrderId);
+            persistOrder(orderId, request.buyerEmail(), request.destinationPincode(), quote, razorpayOrderId);
         } catch (RuntimeException e) {
             reservations.releaseByOrder(orderId);
             throw e;
@@ -102,14 +133,16 @@ public class CheckoutService {
      * internally, which the Spring AOP proxy would never intercept, per the
      * same self-invocation lesson from Day 26/28) makes this one atomic unit.
      */
-    private void persistOrder(UUID orderId, String buyerEmail, CartQuote quote, String razorpayOrderId) {
+    private void persistOrder(UUID orderId, String buyerEmail, String destinationPincode,
+                               CartQuote quote, String razorpayOrderId) {
         tx.executeWithoutResult(status -> {
             Instant expiresAt = Instant.now().plus(CHECKOUT_WINDOW);
             jdbc.update("""
-                INSERT INTO orders (id, buyer_email, status, total_amount, currency, razorpay_order_id, expires_at)
-                VALUES (?, ?, 'CREATED', ?, ?, ?, ?)
+                INSERT INTO orders (id, buyer_email, status, total_amount, currency, razorpay_order_id,
+                                     expires_at, destination_pincode)
+                VALUES (?, ?, 'CREATED', ?, ?, ?, ?, ?)
                 """, orderId, buyerEmail, quote.total().amount(), quote.total().currency().getCurrencyCode(),
-                razorpayOrderId, Timestamp.from(expiresAt));
+                razorpayOrderId, Timestamp.from(expiresAt), destinationPincode);
 
             // Durable record of what was actually ordered - previously only
             // the aggregate total was persisted, and the per-line breakdown

@@ -1,0 +1,13 @@
+-- Not in either runbook. Found while scoping Week 7's weather gating (every
+-- shipment needs a real destination pincode): checkout never captured one
+-- at all, and CheckoutService never actually called AllocationEngine - a
+-- real order always reserved against whatever listing the buyer's cart
+-- line named, never the engine's best-scoring candidate across sellers.
+-- The allocation engine (Week 6) was only ever exercised by the pre-payment
+-- preview, never by a real purchase. Fixed alongside this column: see
+-- CheckoutService.
+--
+-- Nullable, not NOT NULL: existing pre-Week-7 orders never captured a
+-- destination and there is nothing honest to backfill them with. Every new
+-- order via checkout() populates it (enforced at the API layer, not the DB).
+ALTER TABLE orders ADD COLUMN destination_pincode TEXT;

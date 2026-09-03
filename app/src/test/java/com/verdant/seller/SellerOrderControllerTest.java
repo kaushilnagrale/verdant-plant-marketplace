@@ -7,6 +7,7 @@ import com.verdant.checkout.CheckoutResult;
 import com.verdant.checkout.CheckoutService;
 import com.verdant.checkout.PaymentVerificationRequest;
 import com.verdant.checkout.PaymentVerificationService;
+import com.verdant.common.testing.AllocationFixtures;
 import com.verdant.common.testing.IntegrationTestBase;
 import com.verdant.orders.saga.OrderSaga;
 import com.verdant.orders.saga.OrderSagaOrchestrator;
@@ -47,21 +48,19 @@ class SellerOrderControllerTest extends IntegrationTestBase {
 
     @BeforeEach
     void seed() {
-        sellerId = jdbc.queryForObject(
-            "INSERT INTO sellers (business_name, status) VALUES ('Seller Order Test Nursery', 'APPROVED') RETURNING id",
-            UUID.class);
+        AllocationFixtures.seedLocalPincodeZone(jdbc);
+        sellerId = AllocationFixtures.seedApprovedSeller(jdbc, "Seller Order Test Nursery");
         subjectId = "sub-seller-order-" + UUID.randomUUID();
         jdbc.update("INSERT INTO seller_users (seller_id, subject_id, role) VALUES (?, ?, 'OWNER')", sellerId, subjectId);
-        listingId = jdbc.queryForObject("""
-            INSERT INTO listings (seller_id, raw_title, price_amount) VALUES (?, 'Dispatch Test Plant', 150.00) RETURNING id
-            """, UUID.class, sellerId);
-        jdbc.update("INSERT INTO inventory (listing_id, quantity, buffer) VALUES (?, 5, 0)", listingId);
+        UUID canonicalProductId = AllocationFixtures.seedCanonicalProduct(jdbc, "Fixture Widget Dispatch");
+        listingId = AllocationFixtures.seedListing(jdbc, sellerId, canonicalProductId, "Fixture Widget Dispatch", "150.00", 5);
     }
 
     /** Real checkout, real payment verification, then drives the live saga (same trick as SagaCompensationTest) until its shipment is genuinely booked. */
     private UUID checkoutAndReachShipmentBooked() throws Exception {
         CheckoutResult checkout = checkoutService.checkout(
-            new CheckoutRequest("dispatch-buyer@example.com", List.of(new CartLine(listingId, 1))));
+            new CheckoutRequest("dispatch-buyer@example.com", List.of(new CartLine(listingId, 1)),
+                AllocationFixtures.LOCAL_PINCODE));
 
         String paymentId = "pay_dispatch_" + UUID.randomUUID();
         String signature = Utils.getHash(checkout.razorpayOrderId() + "|" + paymentId, razorpayProps.keySecret());

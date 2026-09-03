@@ -6,8 +6,8 @@ export async function previewCart(items: CartLine[], destinationPincode: string)
   return res.data;
 }
 
-export async function checkout(buyerEmail: string, lines: CartLine[]): Promise<CheckoutResult> {
-  const res = await apiClient.post<CheckoutResult>("/v1/checkout", { buyerEmail, lines });
+export async function checkout(buyerEmail: string, lines: CartLine[], destinationPincode: string): Promise<CheckoutResult> {
+  const res = await apiClient.post<CheckoutResult>("/v1/checkout", { buyerEmail, lines, destinationPincode });
   return res.data;
 }
 

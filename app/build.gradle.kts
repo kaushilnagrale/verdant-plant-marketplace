@@ -33,4 +33,6 @@ dependencies {
     testImplementation("net.jqwik:jqwik-spring:0.12.0")
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.springframework.boot:spring-boot-restclient")
+    testImplementation("org.springframework.boot:spring-boot-resttestclient")
 }

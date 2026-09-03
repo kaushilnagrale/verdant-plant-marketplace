@@ -1,6 +1,7 @@
 package com.verdant.checkout;
 
 import com.verdant.cart.CartLine;
+import com.verdant.common.testing.AllocationFixtures;
 import com.verdant.common.testing.IntegrationTestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,25 +29,21 @@ class CheckoutServiceTest extends IntegrationTestBase {
 
     @BeforeEach
     void seedListings() {
-        sellerId = jdbc.queryForObject(
-            "INSERT INTO sellers (business_name, status) VALUES ('Checkout Test Nursery', 'APPROVED') RETURNING id",
-            UUID.class);
+        AllocationFixtures.seedLocalPincodeZone(jdbc);
+        sellerId = AllocationFixtures.seedApprovedSeller(jdbc, "Checkout Test Nursery");
 
-        inStockListing = jdbc.queryForObject("""
-            INSERT INTO listings (seller_id, raw_title, price_amount) VALUES (?, 'Snake Plant', 349.00) RETURNING id
-            """, UUID.class, sellerId);
-        jdbc.update("INSERT INTO inventory (listing_id, quantity, buffer) VALUES (?, 5, 0)", inStockListing);
+        UUID snakePlant = AllocationFixtures.seedCanonicalProduct(jdbc, "Fixture Widget Alpha");
+        inStockListing = AllocationFixtures.seedListing(jdbc, sellerId, snakePlant, "Snake Plant", "349.00", 5);
 
-        outOfStockListing = jdbc.queryForObject("""
-            INSERT INTO listings (seller_id, raw_title, price_amount) VALUES (?, 'Rare Bonsai', 2999.00) RETURNING id
-            """, UUID.class, sellerId);
-        jdbc.update("INSERT INTO inventory (listing_id, quantity, buffer) VALUES (?, 0, 0)", outOfStockListing);
+        UUID rareBonsai = AllocationFixtures.seedCanonicalProduct(jdbc, "Fixture Widget Beta");
+        outOfStockListing = AllocationFixtures.seedListing(jdbc, sellerId, rareBonsai, "Rare Bonsai", "2999.00", 0);
     }
 
     @Test
     void checkout_reservesStockCreatesRazorpayOrderAndPersistsOrder() {
         CheckoutResult result = checkoutService.checkout(
-            new CheckoutRequest("buyer@example.com", List.of(new CartLine(inStockListing, 2))));
+            new CheckoutRequest("buyer@example.com", List.of(new CartLine(inStockListing, 2)),
+                AllocationFixtures.LOCAL_PINCODE));
 
         assertThat(result.razorpayOrderId()).isNotBlank();
         assertThat(result.totalAmount().amount()).isEqualByComparingTo("698.00"); // 349.00 x 2
@@ -63,7 +60,8 @@ class CheckoutServiceTest extends IntegrationTestBase {
     @Test
     void checkout_persistsOrderItems_withSellerAndPriceBreakdown() {
         CheckoutResult result = checkoutService.checkout(
-            new CheckoutRequest("buyer@example.com", List.of(new CartLine(inStockListing, 2))));
+            new CheckoutRequest("buyer@example.com", List.of(new CartLine(inStockListing, 2)),
+                AllocationFixtures.LOCAL_PINCODE));
 
         var items = jdbc.queryForList(
             "SELECT listing_id, seller_id, quantity, unit_price, line_total FROM order_items WHERE order_id = ?",
@@ -83,7 +81,8 @@ class CheckoutServiceTest extends IntegrationTestBase {
         // First line has plenty of stock, second doesn't - the whole
         // checkout must fail atomically, not partially reserve the first.
         assertThatThrownBy(() -> checkoutService.checkout(new CheckoutRequest("buyer@example.com",
-                List.of(new CartLine(inStockListing, 1), new CartLine(outOfStockListing, 1)))))
+                List.of(new CartLine(inStockListing, 1), new CartLine(outOfStockListing, 1)),
+                AllocationFixtures.LOCAL_PINCODE)))
             .isInstanceOf(ResponseStatusException.class);
 
         Integer remainingStock = jdbc.queryForObject(

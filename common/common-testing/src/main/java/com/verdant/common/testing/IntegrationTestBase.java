@@ -11,7 +11,7 @@ import org.testcontainers.utility.DockerImageName;
 
 @SpringBootTest
 @ActiveProfiles("test")
-@ExtendWith(LedgerInvariantExtension.class)
+@ExtendWith({LedgerInvariantExtension.class, AllocationFixtureCleanupExtension.class})
 public abstract class IntegrationTestBase {
 
     protected static final PostgreSQLContainer POSTGRES =

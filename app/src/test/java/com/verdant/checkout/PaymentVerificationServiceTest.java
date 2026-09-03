@@ -2,6 +2,7 @@ package com.verdant.checkout;
 
 import com.razorpay.Utils;
 import com.verdant.cart.CartLine;
+import com.verdant.common.testing.AllocationFixtures;
 import com.verdant.common.testing.IntegrationTestBase;
 import com.verdant.payment.RazorpayProperties;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,18 +35,16 @@ class PaymentVerificationServiceTest extends IntegrationTestBase {
 
     @BeforeEach
     void seedListing() {
-        UUID sellerId = jdbc.queryForObject(
-            "INSERT INTO sellers (business_name, status) VALUES ('Payment Test Nursery', 'APPROVED') RETURNING id",
-            UUID.class);
-        listingId = jdbc.queryForObject("""
-            INSERT INTO listings (seller_id, raw_title, price_amount) VALUES (?, 'Payment Test Plant', 199.00) RETURNING id
-            """, UUID.class, sellerId);
-        jdbc.update("INSERT INTO inventory (listing_id, quantity, buffer) VALUES (?, 5, 0)", listingId);
+        AllocationFixtures.seedLocalPincodeZone(jdbc);
+        UUID sellerId = AllocationFixtures.seedApprovedSeller(jdbc, "Payment Test Nursery");
+        UUID canonicalProductId = AllocationFixtures.seedCanonicalProduct(jdbc, "Fixture Widget Payment");
+        listingId = AllocationFixtures.seedListing(jdbc, sellerId, canonicalProductId, "Fixture Widget Payment", "199.00", 5);
     }
 
     private CheckoutResult startCheckout() {
         return checkoutService.checkout(
-            new CheckoutRequest("buyer@example.com", List.of(new CartLine(listingId, 1))));
+            new CheckoutRequest("buyer@example.com", List.of(new CartLine(listingId, 1)),
+                AllocationFixtures.LOCAL_PINCODE));
     }
 
     private String signatureFor(String razorpayOrderId, String paymentId, String secret) throws Exception {
