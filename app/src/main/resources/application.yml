@@ -11,3 +11,9 @@ spring:
 management:
   endpoints.web.exposure.include: health,info,metrics
   endpoint.health.probes.enabled: true
+
+# Placeholder values, environment-independent business config (not a secret).
+verdant:
+  shipping:
+    per-shipment-fee: 49.00
+    platform-cap: 99.00
