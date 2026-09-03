@@ -153,9 +153,14 @@ public class OrderSagaOrchestrator {
         saga.moveTo(SagaState.SETTLEMENT_POSTED);
     }
 
+    /** An order can span multiple sellers - books one shipment per seller, not one per order. */
     private void bookShipment(OrderSaga saga) {
+        List<UUID> sellerIds = jdbc.queryForList(
+            "SELECT DISTINCT seller_id FROM order_items WHERE order_id = ?", UUID.class, saga.getOrderId());
         try {
-            logistics.book(saga.getOrderId());
+            for (UUID sellerId : sellerIds) {
+                logistics.book(saga.getOrderId(), sellerId);
+            }
         } catch (RuntimeException e) {
             throw new RetryableException("Shipment booking failed: " + e.getMessage(), e);
         }

@@ -110,7 +110,7 @@ class SagaCompensationTest extends IntegrationTestBase {
             settlementService.settle(orderId, buyerId(), sellerId, Money.of("199.00"), LocalDate.now());
         }
         if (failAt.ordinal() >= SagaState.SHIPMENT_BOOKED.ordinal()) {
-            logistics.book(orderId);
+            logistics.book(orderId, sellerId);
         }
 
         jdbc.update("""
@@ -156,7 +156,7 @@ class SagaCompensationTest extends IntegrationTestBase {
             assertThat(ledger.balance(accounts.sellerPayable(sellerId))).isEqualTo(Money.ZERO);
         }
         if (failAt.ordinal() >= SagaState.SHIPMENT_BOOKED.ordinal()) {
-            assertThat(logistics.isBooked(orderId)).isFalse();
+            assertThat(logistics.isBooked(orderId, sellerId)).isFalse();
         }
     }
 
