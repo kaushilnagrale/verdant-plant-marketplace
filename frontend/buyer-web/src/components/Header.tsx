@@ -3,7 +3,10 @@ import { useCart } from "../context/CartContext";
 
 export function Header() {
   const { items } = useCart();
-  const count = items.reduce((sum, i) => sum + i.quantity, 0);
+  // Distinct listings in the cart, not total units - 22 of one plant is
+  // still 1 item added, the same way Gmail's unread count isn't "total
+  // words unread."
+  const count = items.length;
 
   return (
     <header className="site-header">
