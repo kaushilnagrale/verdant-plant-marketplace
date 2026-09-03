@@ -24,6 +24,8 @@ dependencies {
 
     implementation("com.razorpay:razorpay-java:1.4.8")
     implementation("org.springframework.boot:spring-boot-starter-kafka")
+    implementation("org.springframework.boot:spring-boot-starter-cache")
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
     testImplementation(project(":common:common-testing"))
     testImplementation(rootProject.libs.archunit)
