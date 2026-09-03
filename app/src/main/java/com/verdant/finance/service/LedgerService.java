@@ -1,8 +1,10 @@
 package com.verdant.finance.service;
 
 import com.verdant.common.domain.Money;
+import com.verdant.finance.domain.BalanceSnapshot;
 import com.verdant.finance.domain.LedgerEntry;
 import com.verdant.finance.domain.LedgerTransaction;
+import com.verdant.finance.repository.BalanceSnapshotRepository;
 import com.verdant.finance.repository.LedgerEntryRepository;
 import com.verdant.finance.repository.LedgerTransactionRepository;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -20,12 +22,14 @@ public class LedgerService {
 
     private final LedgerTransactionRepository transactions;
     private final LedgerEntryRepository entries;
+    private final BalanceSnapshotRepository snapshots;
     private final TransactionTemplate isolatedInsert;
 
     public LedgerService(LedgerTransactionRepository transactions, LedgerEntryRepository entries,
-                          PlatformTransactionManager txManager) {
+                          BalanceSnapshotRepository snapshots, PlatformTransactionManager txManager) {
         this.transactions = transactions;
         this.entries = entries;
+        this.snapshots = snapshots;
         this.isolatedInsert = new TransactionTemplate(txManager);
         this.isolatedInsert.setPropagationBehavior(DefaultTransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -89,6 +93,32 @@ public class LedgerService {
         // save() re-attaches it (a merge/update, since it already has an id).
         txn.markReverses(original.getId());
         return transactions.save(txn);
+    }
+
+    /** Fast path: latest snapshot plus entries after it. */
+    @Transactional(readOnly = true)
+    public Money balance(UUID accountId) {
+        return snapshots.latestFor(accountId)
+            .map(s -> s.runningBalance().plus(Money.of(entries.sumAfter(accountId, s.asOfEntryId()))))
+            .orElseGet(() -> Money.of(entries.sumAll(accountId)));
+    }
+
+    /** Slow path: sums every entry from scratch, ignoring any snapshot. Used only by tests and reconciliation. */
+    @Transactional(readOnly = true)
+    public Money balanceViaFullReplay(UUID accountId) {
+        return entries.findByAccountIdOrderById(accountId).stream()
+            .map(LedgerEntry::amount)
+            .reduce(Money.ZERO, Money::plus);
+    }
+
+    @Transactional
+    public void snapshot(UUID accountId) {
+        Long maxEntryId = entries.maxEntryIdFor(accountId);
+        if (maxEntryId == null) {
+            return; // no entries yet - nothing to snapshot
+        }
+        Money balance = balance(accountId);
+        snapshots.save(new BalanceSnapshot(accountId, maxEntryId, balance));
     }
 
     public record EntrySpec(UUID accountId, Money amount) { }

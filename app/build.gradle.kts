@@ -27,6 +27,7 @@ dependencies {
     testImplementation(project(":common:common-testing"))
     testImplementation(rootProject.libs.archunit)
     testImplementation(rootProject.libs.jqwik)
+    testImplementation("net.jqwik:jqwik-spring:0.12.0")
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 }
