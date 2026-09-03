@@ -21,12 +21,17 @@ public class StubLogisticsGateway implements LogisticsGateway {
     @Override
     public String book(UUID orderId, UUID sellerId) {
         String reference = "SHIP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        // origin/destination pincode (Week 7) - populated here so
+        // ShipmentBookingService has real values to book the real courier
+        // against later, without a separate lookup of its own.
         jdbc.update("""
-            INSERT INTO shipments (order_id, seller_id, status, reference)
-            VALUES (?, ?, 'BOOKED', ?)
+            INSERT INTO shipments (order_id, seller_id, status, reference, origin_pincode, destination_pincode)
+            VALUES (?, ?, 'BOOKED', ?,
+                    (SELECT origin_pincode FROM sellers WHERE id = ?),
+                    (SELECT destination_pincode FROM orders WHERE id = ?))
             ON CONFLICT (order_id, seller_id)
             DO UPDATE SET status = 'BOOKED', reference = EXCLUDED.reference, cancelled_at = NULL
-            """, orderId, sellerId, reference);
+            """, orderId, sellerId, reference, sellerId, orderId);
         return reference;
     }
 

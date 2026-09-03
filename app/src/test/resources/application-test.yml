@@ -28,3 +28,13 @@ razorpay:
   key-secret: test-secret-for-signature-verification-only
   webhook-secret: test-webhook-secret-for-signature-verification-only
 
+# StubCourierGateway (@Profile("test")) is what's actually wired in tests -
+# ShiprocketGateway is never constructed under the test profile, so these
+# never talk to a real API. webhook-api-key is a real comparison value
+# though (ShiprocketWebhookVerifier is plain, profile-independent), same
+# reasoning as the Razorpay secret above.
+shiprocket:
+  email: test@example.com
+  password: test-password-never-used
+  webhook-api-key: test-webhook-api-key-for-verification-only
+

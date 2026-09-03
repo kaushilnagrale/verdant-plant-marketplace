@@ -35,6 +35,11 @@ razorpay:
   key-secret: ${RAZORPAY_KEY_SECRET}
   webhook-secret: ${RAZORPAY_WEBHOOK_SECRET}
 
+shiprocket:
+  email: ${SHIPROCKET_EMAIL}
+  password: ${SHIPROCKET_PASSWORD}
+  webhook-api-key: ${SHIPROCKET_WEBHOOK_API_KEY}
+
 verdant:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
