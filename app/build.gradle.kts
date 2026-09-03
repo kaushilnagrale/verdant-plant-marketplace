@@ -23,6 +23,7 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-starter-model-transformers")
 
     implementation("com.razorpay:razorpay-java:1.4.8")
+    implementation("org.springframework.boot:spring-boot-starter-kafka")
 
     testImplementation(project(":common:common-testing"))
     testImplementation(rootProject.libs.archunit)

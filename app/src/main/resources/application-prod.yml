@@ -6,6 +6,11 @@ spring:
   data.redis:
     host: ${REDIS_HOST}
     port: ${REDIS_PORT}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
   security.oauth2.resourceserver.jwt:
     issuer-uri: ${OIDC_ISSUER_URI}
   ai:
@@ -22,3 +27,10 @@ aws:
   s3:
     bucket: ${S3_BUCKET}
     region: ${AWS_REGION}
+
+# Gap fixed 2026-09 (Week 6, Day 31 audit): this was missing entirely since
+# Day 23 - RazorpayProperties would have silently bound to null in prod.
+razorpay:
+  key-id: ${RAZORPAY_KEY_ID}
+  key-secret: ${RAZORPAY_KEY_SECRET}
+  webhook-secret: ${RAZORPAY_WEBHOOK_SECRET}
