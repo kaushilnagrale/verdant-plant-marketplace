@@ -29,6 +29,16 @@ public record Money(BigDecimal amount, Currency currency) {
         return new Money(amount.multiply(BigDecimal.valueOf(quantity)), currency);
     }
 
+    /**
+     * A percentage of this amount (e.g. commission = gross.multiply(0.12)).
+     * Rounds to 2dp HALF_UP via the compact constructor - deliberately not
+     * exact, which is why settlement derives the final leg by subtraction
+     * rather than its own percentage (see SettlementService).
+     */
+    public Money multiply(BigDecimal rate) {
+        return new Money(amount.multiply(rate), currency);
+    }
+
     private void require(Money o) {
         if (!currency.equals(o.currency))
             throw new IllegalArgumentException("Currency mismatch: " + currency + " vs " + o.currency);
