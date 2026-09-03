@@ -12,6 +12,8 @@ import com.verdant.payment.RazorpayProperties;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Duration;
@@ -40,16 +42,19 @@ public class CheckoutService {
     private final PaymentGateway paymentGateway;
     private final RazorpayProperties razorpayProps;
     private final JdbcTemplate jdbc;
+    private final TransactionTemplate tx;
 
     public CheckoutService(CartPricingService pricing, InventoryService inventory,
                             ReservationService reservations, PaymentGateway paymentGateway,
-                            RazorpayProperties razorpayProps, JdbcTemplate jdbc) {
+                            RazorpayProperties razorpayProps, JdbcTemplate jdbc,
+                            PlatformTransactionManager txManager) {
         this.pricing = pricing;
         this.inventory = inventory;
         this.reservations = reservations;
         this.paymentGateway = paymentGateway;
         this.razorpayProps = razorpayProps;
         this.jdbc = jdbc;
+        this.tx = new TransactionTemplate(txManager);
     }
 
     public CheckoutResult checkout(CheckoutRequest request) {
@@ -87,12 +92,37 @@ public class CheckoutService {
         }
     }
 
+    /**
+     * Multiple related inserts (the order row, and one row per line item)
+     * must land together or not at all - a bare sequence of jdbc.update()
+     * calls with no active transaction auto-commits each one individually,
+     * so a failure partway through (e.g. the 2nd of 3 items) would leave a
+     * committed order with only some of its items recorded. TransactionTemplate
+     * (not a plain @Transactional - this is a private method called
+     * internally, which the Spring AOP proxy would never intercept, per the
+     * same self-invocation lesson from Day 26/28) makes this one atomic unit.
+     */
     private void persistOrder(UUID orderId, String buyerEmail, CartQuote quote, String razorpayOrderId) {
-        Instant expiresAt = Instant.now().plus(CHECKOUT_WINDOW);
-        jdbc.update("""
-            INSERT INTO orders (id, buyer_email, status, total_amount, currency, razorpay_order_id, expires_at)
-            VALUES (?, ?, 'CREATED', ?, ?, ?, ?)
-            """, orderId, buyerEmail, quote.total().amount(), quote.total().currency().getCurrencyCode(),
-            razorpayOrderId, Timestamp.from(expiresAt));
+        tx.executeWithoutResult(status -> {
+            Instant expiresAt = Instant.now().plus(CHECKOUT_WINDOW);
+            jdbc.update("""
+                INSERT INTO orders (id, buyer_email, status, total_amount, currency, razorpay_order_id, expires_at)
+                VALUES (?, ?, 'CREATED', ?, ?, ?, ?)
+                """, orderId, buyerEmail, quote.total().amount(), quote.total().currency().getCurrencyCode(),
+                razorpayOrderId, Timestamp.from(expiresAt));
+
+            // Durable record of what was actually ordered - previously only
+            // the aggregate total was persisted, and the per-line breakdown
+            // (listing, seller, price) was discarded once CartQuote went
+            // out of scope. The allocation engine (Week 6) needs this to
+            // route each line to a seller.
+            for (var line : quote.lines()) {
+                jdbc.update("""
+                    INSERT INTO order_items (order_id, listing_id, seller_id, quantity, unit_price, line_total)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """, orderId, line.listingId(), line.sellerId(), line.quantity(),
+                    line.unitPrice().amount(), line.lineTotal().amount());
+            }
+        });
     }
 }

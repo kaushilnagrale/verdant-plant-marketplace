@@ -24,10 +24,11 @@ class CheckoutServiceTest extends IntegrationTestBase {
 
     private UUID inStockListing;
     private UUID outOfStockListing;
+    private UUID sellerId;
 
     @BeforeEach
     void seedListings() {
-        UUID sellerId = jdbc.queryForObject(
+        sellerId = jdbc.queryForObject(
             "INSERT INTO sellers (business_name, status) VALUES ('Checkout Test Nursery', 'APPROVED') RETURNING id",
             UUID.class);
 
@@ -57,6 +58,24 @@ class CheckoutServiceTest extends IntegrationTestBase {
         String orderStatus = jdbc.queryForObject(
             "SELECT status FROM orders WHERE id = ?", String.class, result.orderId());
         assertThat(orderStatus).isEqualTo("CREATED");
+    }
+
+    @Test
+    void checkout_persistsOrderItems_withSellerAndPriceBreakdown() {
+        CheckoutResult result = checkoutService.checkout(
+            new CheckoutRequest("buyer@example.com", List.of(new CartLine(inStockListing, 2))));
+
+        var items = jdbc.queryForList(
+            "SELECT listing_id, seller_id, quantity, unit_price, line_total FROM order_items WHERE order_id = ?",
+            result.orderId());
+
+        assertThat(items).hasSize(1);
+        var item = items.get(0);
+        assertThat(item.get("listing_id")).isEqualTo(inStockListing);
+        assertThat(item.get("seller_id")).isEqualTo(sellerId);
+        assertThat(item.get("quantity")).isEqualTo(2);
+        assertThat((java.math.BigDecimal) item.get("unit_price")).isEqualByComparingTo("349.00");
+        assertThat((java.math.BigDecimal) item.get("line_total")).isEqualByComparingTo("698.00");
     }
 
     @Test

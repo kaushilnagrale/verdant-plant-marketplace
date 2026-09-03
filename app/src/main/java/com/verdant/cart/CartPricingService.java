@@ -40,7 +40,7 @@ public class CartPricingService {
             Money lineTotal = unitPrice.times(line.quantity());
 
             lineTotals.add(new CartLineTotal(
-                listing.getId(), listing.getRawTitle(), line.quantity(), unitPrice, lineTotal));
+                listing.getId(), listing.getSellerId(), listing.getRawTitle(), line.quantity(), unitPrice, lineTotal));
             total = total.plus(lineTotal);
         }
 
