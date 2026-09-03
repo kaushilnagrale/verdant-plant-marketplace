@@ -11,4 +11,7 @@ import com.verdant.common.domain.Money;
 public interface PaymentGateway {
     /** Creates a payment order with the gateway and returns its gateway-side order id. */
     String createOrder(Money amount, String receiptId);
+
+    /** Refunds a captured payment (saga compensation) and returns the gateway-side refund id. */
+    String refund(String paymentId, Money amount);
 }

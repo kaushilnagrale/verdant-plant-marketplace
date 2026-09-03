@@ -50,7 +50,14 @@ public class SettlementService {
             .toList();
 
         return ledger.post(
-            "settle:" + orderId, // idempotency derived from the order - a retried settlement never double-posts
+            // Keyed by (order, seller), not just order: an order can now
+            // span multiple sellers (order_items, Day 32/Week 6). Keying by
+            // orderId alone would make the second seller's settle() call on
+            // the same order collide with the first's idempotency key and
+            // get silently treated as a replay - never actually posted, a
+            // real bug caught before it was ever exercised by a real
+            // multi-seller order.
+            "settle:" + orderId + ":" + sellerId,
             "ORDER_SETTLEMENT",
             orderId.toString(),
             legs);

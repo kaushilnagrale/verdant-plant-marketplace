@@ -26,14 +26,35 @@ public class ReservationService {
      * the write are one indivisible step, not read-then-write.
      */
     public boolean release(UUID reservationId) {
-        List<Map<String, Object>> released = jdbc.queryForList("""
-            UPDATE reservations
-               SET released_at = now()
-             WHERE id = ?
-               AND released_at IS NULL
-               AND fulfilled_at IS NULL
-            RETURNING listing_id, quantity
-            """, reservationId);
+        return doRelease(reservationId, true);
+    }
+
+    /**
+     * Saga compensation only (Day 33): releases a reservation even if it was
+     * already fulfilled. Normally a fulfilled reservation is permanently
+     * protected (see release()/releaseExpired()) - a completed sale should
+     * never be silently released back onto the shelf. But if a payment that
+     * succeeded is being refunded because something later in the pipeline
+     * (settlement, shipment) failed irrecoverably, the stock MUST go back on
+     * sale despite the sale normally being final. Only an active refund
+     * decision justifies this - never call it from anywhere else.
+     */
+    public boolean releaseForRefund(UUID reservationId) {
+        return doRelease(reservationId, false);
+    }
+
+    private boolean doRelease(UUID reservationId, boolean respectFulfilled) {
+        List<Map<String, Object>> released = respectFulfilled
+            ? jdbc.queryForList("""
+                UPDATE reservations SET released_at = now()
+                 WHERE id = ? AND released_at IS NULL AND fulfilled_at IS NULL
+                RETURNING listing_id, quantity
+                """, reservationId)
+            : jdbc.queryForList("""
+                UPDATE reservations SET released_at = now()
+                 WHERE id = ? AND released_at IS NULL
+                RETURNING listing_id, quantity
+                """, reservationId);
 
         if (released.isEmpty()) {
             return false;
@@ -41,7 +62,11 @@ public class ReservationService {
 
         UUID listingId = (UUID) released.get(0).get("listing_id");
         int quantity = (int) released.get(0).get("quantity");
+        creditBack(listingId, quantity);
+        return true;
+    }
 
+    private void creditBack(UUID listingId, int quantity) {
         jdbc.update("""
             UPDATE inventory SET quantity = quantity + ?, updated_at = now()
              WHERE listing_id = ?
@@ -50,7 +75,6 @@ public class ReservationService {
             INSERT INTO inventory_adjustments (listing_id, delta, reason, actor_id)
             VALUES (?, ?, 'RESERVATION_RELEASE', 'system')
             """, listingId, quantity);
-        return true;
     }
 
     /**
@@ -82,14 +106,28 @@ public class ReservationService {
      * because a window passed.
      */
     public int releaseByOrder(UUID orderId) {
-        List<UUID> reservationIds = jdbc.queryForList("""
-            SELECT id FROM reservations
-             WHERE order_id = ? AND released_at IS NULL AND fulfilled_at IS NULL
-            """, UUID.class, orderId);
+        return releaseByOrder(orderId, true);
+    }
+
+    /** Saga compensation only - see releaseForRefund(). */
+    public int releaseByOrderForRefund(UUID orderId) {
+        return releaseByOrder(orderId, false);
+    }
+
+    private int releaseByOrder(UUID orderId, boolean respectFulfilled) {
+        List<UUID> reservationIds = respectFulfilled
+            ? jdbc.queryForList("""
+                SELECT id FROM reservations
+                 WHERE order_id = ? AND released_at IS NULL AND fulfilled_at IS NULL
+                """, UUID.class, orderId)
+            : jdbc.queryForList("""
+                SELECT id FROM reservations WHERE order_id = ? AND released_at IS NULL
+                """, UUID.class, orderId);
 
         int released = 0;
         for (UUID id : reservationIds) {
-            if (release(id)) {
+            boolean ok = respectFulfilled ? release(id) : releaseForRefund(id);
+            if (ok) {
                 released++;
             }
         }

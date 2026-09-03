@@ -123,6 +123,15 @@ public class CheckoutService {
                     """, orderId, line.listingId(), line.sellerId(), line.quantity(),
                     line.unitPrice().amount(), line.lineTotal().amount());
             }
+
+            // Created already at INVENTORY_RESERVED, not STARTED - reserveStock()
+            // above already did that step synchronously, before Razorpay was
+            // ever called. The saga's own job (Day 33) picks up from here:
+            // waiting for payment, then settlement, then shipment.
+            jdbc.update("""
+                INSERT INTO order_sagas (order_id, state, furthest_state, next_attempt_at)
+                VALUES (?, 'INVENTORY_RESERVED', 'INVENTORY_RESERVED', now())
+                """, orderId);
         });
     }
 }

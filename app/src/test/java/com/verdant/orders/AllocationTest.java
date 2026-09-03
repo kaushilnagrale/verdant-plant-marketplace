@@ -3,12 +3,14 @@ package com.verdant.orders;
 import com.verdant.cart.CartLine;
 import com.verdant.common.testing.IntegrationTestBase;
 import com.verdant.orders.allocation.AllocationEngine;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,6 +20,32 @@ class AllocationTest extends IntegrationTestBase {
 
     @Autowired private AllocationEngine engine;
     @Autowired private JdbcTemplate jdbc;
+
+    /**
+     * canonical_products is a table SHARED with the whole catalog-mapping
+     * pipeline (Week 3) - MappingAccuracyTest evaluates against every row
+     * in it. Leaving test-created rows behind (some using the exact same
+     * display names as the real seeded catalog, e.g. "Boston Fern") was
+     * found to corrupt that unrelated test's own accuracy measurement
+     * (precision dropped 0.92 -> 0.80 in a real run). Tracked and cleaned
+     * up here regardless of pass/fail.
+     */
+    private final List<UUID> createdCanonicalProducts = new ArrayList<>();
+
+    @AfterEach
+    void cleanUpTestCanonicalProducts() {
+        for (UUID id : createdCanonicalProducts) {
+            // Dependency order: listings (created by this test) reference
+            // the canonical product, and inventory references the listing -
+            // both must go first or the FK constraint rejects the delete.
+            jdbc.update("""
+                DELETE FROM inventory WHERE listing_id IN (
+                  SELECT id FROM listings WHERE canonical_product_id = ?)
+                """, id);
+            jdbc.update("DELETE FROM listings WHERE canonical_product_id = ?", id);
+            jdbc.update("DELETE FROM canonical_products WHERE id = ?", id);
+        }
+    }
 
     @BeforeEach
     void seedPincodeZones() {
@@ -34,12 +62,19 @@ class AllocationTest extends IntegrationTestBase {
             """);
     }
 
-    /** Dedicated per-test canonical products, not the real seeded catalog - keeps every scenario's numbers under this test's own control. */
+    /**
+     * Dedicated per-test canonical products, not the real seeded catalog -
+     * keeps every scenario's numbers under this test's own control. Display
+     * name is prefixed so it can never collide with a real seeded product
+     * (e.g. "Boston Fern") even before cleanUpTestCanonicalProducts() runs.
+     */
     private UUID canonicalProduct(String displayName, int maxTransitDays) {
-        return jdbc.queryForObject("""
+        UUID id = jdbc.queryForObject("""
             INSERT INTO canonical_products (botanical_name, display_name, size_tier, heat_tolerance, max_transit_days)
             VALUES (?, ?, 'MEDIUM', 'HIGH', ?) RETURNING id
-            """, UUID.class, "Test-" + UUID.randomUUID(), displayName, maxTransitDays);
+            """, UUID.class, "Test-" + UUID.randomUUID(), "[AllocationTest] " + displayName, maxTransitDays);
+        createdCanonicalProducts.add(id);
+        return id;
     }
 
     private UUID seller(String name, String originPincode, String qualityScore, String status) {
@@ -127,8 +162,8 @@ class AllocationTest extends IntegrationTestBase {
 
         var plan = engine.plan(List.of(new CartLine(fernListing, 1), new CartLine(snakeListing, 1)), "797001");
 
-        assertThat(plan.unfulfillable()).extracting("productName").contains("Boston Fern");
-        assertThat(plan.allocated()).extracting("productName").contains("Snake Plant");
+        assertThat(plan.unfulfillable()).extracting("productName").contains("[AllocationTest] Boston Fern");
+        assertThat(plan.allocated()).extracting("productName").contains("[AllocationTest] Snake Plant");
     }
 
     @Test

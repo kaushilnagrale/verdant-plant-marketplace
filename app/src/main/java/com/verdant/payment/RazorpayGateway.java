@@ -3,6 +3,7 @@ package com.verdant.payment;
 import com.razorpay.Order;
 import com.razorpay.RazorpayClient;
 import com.razorpay.RazorpayException;
+import com.razorpay.Refund;
 import com.verdant.common.domain.Money;
 import org.json.JSONObject;
 import org.springframework.context.annotation.Profile;
@@ -37,6 +38,20 @@ public class RazorpayGateway implements PaymentGateway {
             return order.get("id");
         } catch (RazorpayException e) {
             throw new IllegalStateException("Razorpay order creation failed", e);
+        }
+    }
+
+    @Override
+    public String refund(String paymentId, Money amount) {
+        try {
+            JSONObject request = new JSONObject();
+            request.put("amount", amount.amount().movePointRight(2).longValueExact());
+            request.put("speed", "normal");
+
+            Refund refund = client.payments.refund(paymentId, request);
+            return refund.get("id");
+        } catch (RazorpayException e) {
+            throw new IllegalStateException("Razorpay refund failed", e);
         }
     }
 }
