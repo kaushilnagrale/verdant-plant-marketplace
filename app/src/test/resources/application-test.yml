@@ -38,3 +38,15 @@ shiprocket:
   password: test-password-never-used
   webhook-api-key: test-webhook-api-key-for-verification-only
 
+# DispatchOrchestrationJob uses fixedDelay (not a cron expression like
+# ForecastRefreshJob/HoldReleaseJob), which fires shortly after context
+# startup by default - that would mean it starts mutating shipment rows
+# mid-test in every single test that boots the full Spring context,
+# racing against whatever that test is asserting. Effectively disabled
+# for automated tests; still directly callable via orchestrate() when a
+# test wants to invoke it explicitly (see DispatchOrchestrationJobTest).
+verdant:
+  dispatch:
+    orchestration-initial-delay-ms: 999999999
+    orchestration-interval-ms: 999999999
+

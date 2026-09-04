@@ -166,14 +166,32 @@ class ShipmentBookingTest extends IntegrationTestBase {
     }
 
     @Test
-    void bookingDisabledByFlag_marksReadyForManualDispatch() throws Exception {
+    void bookingDisabledByFlag_leavesShipmentBookedForManualDispatch() throws Exception {
         setFlag("shiprocket_booking", false, false);
         UUID id = createShipment();
 
         booking.book(id);
 
-        assertThat(statusOf(id)).isEqualTo("READY");
+        // Deliberately unchanged from what the saga already set - NOT
+        // "READY". SellerOrderService.markPacked() guards on status =
+        // 'BOOKED'; a status change here would silently make every order
+        // un-packable the moment this runs automatically (found while
+        // wiring DispatchOrchestrationJob into the live order flow).
+        assertThat(statusOf(id)).isEqualTo("BOOKED");
         assertThat(courierStub.createCalls()).isZero();
+        assertThat(awbOf(id)).isNull();
+    }
+
+    @Test
+    void bookingDisabledByFlag_takesNoClaim_soATurnedOnFlagCanStillBookLater() throws Exception {
+        setFlag("shiprocket_booking", false, false);
+        UUID id = createShipment();
+        booking.book(id); // no-op today
+
+        setFlag("shiprocket_booking", true, false);
+        booking.book(id); // must actually reach the courier now, not be permanently blocked by an earlier no-op claim
+
+        assertThat(awbOf(id)).isNotNull();
     }
 
     private <T> List<T> runInParallel(int n, Callable<T> task) throws Exception {

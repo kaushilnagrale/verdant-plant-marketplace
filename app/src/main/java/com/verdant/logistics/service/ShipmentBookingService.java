@@ -48,6 +48,23 @@ public class ShipmentBookingService {
             return; // already booked - true idempotency, no claim needed
         }
 
+        if (!flags.get("shiprocket_booking").active()) {
+            // Manual dispatch fallback - a human books this with the
+            // courier directly, outside this system. Deliberately a total
+            // no-op: no claim taken (a claim here would permanently block
+            // a real attempt if the flag gets turned on later for this
+            // exact shipment - found while wiring this into the live
+            // order flow, not assumed), and no status change (status stays
+            // 'BOOKED', the same value the saga already set - a real,
+            // previously-invisible bug: this used to write 'READY' here,
+            // which SellerOrderService.markPacked() doesn't recognize
+            // (guards on status = 'BOOKED'), so real orders would have
+            // gotten permanently stuck un-packable the moment automatic
+            // dispatch orchestration called this with the flag off, which
+            // is the default).
+            return;
+        }
+
         // Claim key: our own idempotency key AND (once real booking runs)
         // Shiprocket's own order_id, so a retry after a timeout can never
         // create two pickups - either locally (the claim below) or on the
@@ -59,11 +76,6 @@ public class ShipmentBookingService {
             key, shipmentId);
         if (claimed == 0) {
             return; // someone else is already handling this shipment right now
-        }
-
-        if (!flags.get("shiprocket_booking").active()) {
-            jdbc.update("UPDATE shipments SET status = 'READY' WHERE id = ?", shipmentId);
-            return; // manual dispatch fallback - a human books this with the courier directly
         }
 
         UUID orderId = (UUID) shipment.get("order_id");
