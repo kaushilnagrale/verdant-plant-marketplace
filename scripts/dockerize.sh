@@ -16,6 +16,10 @@ docker run --rm -p 8080:8080 \
   -e RAZORPAY_KEY_SECRET=dummy-secret-for-dockerize-smoketest-only \
   -e RAZORPAY_WEBHOOK_SECRET=dummy-webhook-secret-for-dockerize-smoketest-only \
   -e CORS_ALLOWED_ORIGINS=http://localhost:5173 \
+  -e SHIPROCKET_EMAIL=dummy@example.com \
+  -e SHIPROCKET_PASSWORD=dummy-password-for-dockerize-smoketest-only \
+  -e SHIPROCKET_WEBHOOK_API_KEY=dummy-webhook-key-for-dockerize-smoketest-only \
+  -e WEATHER_API_KEY=dummy-weather-key-for-dockerize-smoketest-only \
   verdant:local
 # Note: RAZORPAY_KEY_ID is deliberately rzp_live_-shaped (not a real key) -
 # KeyModeGuard (added Day 35) refuses to boot the prod profile with a

@@ -43,3 +43,9 @@ shiprocket:
 verdant:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
+  # Gap found and fixed while running Week 7's dockerize.sh smoke test
+  # (2026-09) - same shape as the Day 31 Razorpay gap: WeatherProperties
+  # would have silently bound to null in prod, and ForecastRefreshJob
+  # would have failed every single run against a real deployment.
+  weather:
+    api-key: ${WEATHER_API_KEY}
