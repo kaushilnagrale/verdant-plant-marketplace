@@ -24,6 +24,9 @@ public record Money(BigDecimal amount, Currency currency) {
     public Money negate()       { return new Money(amount.negate(), currency); }
     public boolean isZero()     { return amount.signum() == 0; }
 
+    /** Payout balance checks (Week 8) - never pay out more than the ledger says is actually owed. */
+    public boolean isGreaterThan(Money o) { require(o); return amount.compareTo(o.amount) > 0; }
+
     /** Line-item total: unit price times a quantity (e.g. cart pricing). */
     public Money times(int quantity) {
         return new Money(amount.multiply(BigDecimal.valueOf(quantity)), currency);

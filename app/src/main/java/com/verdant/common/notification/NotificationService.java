@@ -31,6 +31,14 @@ public class NotificationService {
         record(shipmentId, eventType, "ops@verdant.example", bodyFor(eventType));
     }
 
+    /** Payout failures (Week 8) are about a payout cycle, not a single shipment/order - order_id/shipment_id stay null, same as the schema already allows. */
+    public void notifySeller(UUID sellerId, String eventType, String detail) {
+        jdbc.update("""
+            INSERT INTO notifications (event_type, recipient, status, body)
+            VALUES (?, ?, 'RECORDED', ?)
+            """, eventType, "seller:" + sellerId, bodyFor(eventType) + " " + detail);
+    }
+
     private void record(UUID shipmentId, String eventType, String recipient, String body) {
         UUID orderId = jdbc.queryForObject("SELECT order_id FROM shipments WHERE id = ?", UUID.class, shipmentId);
         jdbc.update("""
@@ -61,6 +69,7 @@ public class NotificationService {
             case "HOLD_RELEASED" -> "Good news - the forecast has cleared and your plant is on its way.";
             case "HOLD_ESCALATED" -> "A shipment hold has exceeded its maximum duration and needs manual review.";
             case "HOLD_OVERRIDE_ACKNOWLEDGED" -> "Got it - shipping your plant now despite the forecast, as you asked.";
+            case "PAYOUT_FAILED" -> "Your payout could not be completed.";
             default -> eventType;
         };
     }
