@@ -24,14 +24,28 @@ public class StubLogisticsGateway implements LogisticsGateway {
         // origin/destination pincode (Week 7) - populated here so
         // ShipmentBookingService has real values to book the real courier
         // against later, without a separate lookup of its own.
+        //
+        // planned_dispatch_date (Week 8, another real gap: the column
+        // existed since Day 38 but nothing ever set it, same as
+        // delivered_at - see ShipmentStatusProjector) - today plus the
+        // SLOWEST item's handling time in this shipment, mirroring the
+        // "lowest tolerance wins" rule already used for heat gating: a
+        // consolidated box can't dispatch before every item in it is
+        // ready, so the slowest seller-declared prep time governs the
+        // whole parcel, not the fastest.
         jdbc.update("""
-            INSERT INTO shipments (order_id, seller_id, status, reference, origin_pincode, destination_pincode)
+            INSERT INTO shipments (order_id, seller_id, status, reference, origin_pincode, destination_pincode, planned_dispatch_date)
             VALUES (?, ?, 'BOOKED', ?,
                     (SELECT origin_pincode FROM sellers WHERE id = ?),
-                    (SELECT destination_pincode FROM orders WHERE id = ?))
+                    (SELECT destination_pincode FROM orders WHERE id = ?),
+                    CURRENT_DATE + (CEIL((
+                        SELECT MAX(l.handling_time_hours) FROM order_items oi
+                          JOIN listings l ON l.id = oi.listing_id
+                         WHERE oi.order_id = ? AND oi.seller_id = ?
+                    ) / 24.0)::int) * INTERVAL '1 day')
             ON CONFLICT (order_id, seller_id)
             DO UPDATE SET status = 'BOOKED', reference = EXCLUDED.reference, cancelled_at = NULL
-            """, orderId, sellerId, reference, sellerId, orderId);
+            """, orderId, sellerId, reference, sellerId, orderId, orderId, sellerId);
         return reference;
     }
 

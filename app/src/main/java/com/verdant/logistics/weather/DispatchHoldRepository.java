@@ -75,4 +75,12 @@ public class DispatchHoldRepository {
             "UPDATE dispatch_holds SET released_at = now(), released_by = ? WHERE id = ? AND released_at IS NULL",
             releasedBy, holdId);
     }
+
+    /** Week 8's FaultAttributor: "the platform overrode its own weather gate" - if a buyer's override shipped it into unsafe conditions, the platform owns that outcome, not the seller. */
+    public boolean hadManualOverride(UUID shipmentId) {
+        Long count = jdbc.queryForObject(
+            "SELECT count(*) FROM dispatch_holds WHERE shipment_id = ? AND released_by = 'buyer_override'",
+            Long.class, shipmentId);
+        return count != null && count > 0;
+    }
 }
