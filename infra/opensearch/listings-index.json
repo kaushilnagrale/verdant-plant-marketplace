@@ -1,0 +1,50 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "analysis": {
+      "analyzer": {
+        "plant_name": {
+          "type": "custom",
+          "tokenizer": "standard",
+          "filter": ["lowercase", "asciifolding", "plant_synonyms"]
+        }
+      },
+      "filter": {
+        "plant_synonyms": {
+          "type": "synonym",
+          "synonyms": [
+            "money plant, pothos, devils ivy, epipremnum",
+            "snake plant, sansevieria, mother in law tongue",
+            "tulsi, holy basil, ocimum",
+            "lucky bamboo, dracaena sanderiana"
+          ]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "listing_id":            { "type": "keyword" },
+      "canonical_product_id":  { "type": "keyword" },
+      "seller_id":             { "type": "keyword" },
+      "display_name":          { "type": "text", "analyzer": "plant_name" },
+      "botanical_name":        { "type": "text", "analyzer": "plant_name" },
+      "common_names":          { "type": "text", "analyzer": "plant_name" },
+      "description":           { "type": "text" },
+      "price_amount":          { "type": "scaled_float", "scaling_factor": 100 },
+      "in_stock":              { "type": "boolean" },
+      "quantity":              { "type": "integer" },
+      "origin_zone":           { "type": "keyword" },
+      "origin_pincode":        { "type": "keyword" },
+      "seller_quality_score":  { "type": "float" },
+      "heat_tolerance":        { "type": "keyword" },
+      "max_transit_days":      { "type": "integer" },
+      "size_tier":             { "type": "keyword" },
+      "light_requirement":     { "type": "keyword" },
+      "pet_safe":              { "type": "boolean" },
+      "active":                { "type": "boolean" },
+      "indexed_at":            { "type": "date" }
+    }
+  }
+}

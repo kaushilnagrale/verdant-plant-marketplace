@@ -46,5 +46,22 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: admin
     ports: ["8081:8081"]
 
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    container_name: verdant-opensearch
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms1g -Xmx1g"
+      bootstrap.memory_lock: "true"
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile:  { soft: 65536, hard: 65536 }
+    ports: ["9200:9200"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      retries: 12
+
 volumes:
   pgdata:
