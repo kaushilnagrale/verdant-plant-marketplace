@@ -1,0 +1,21 @@
+# A distinct port (8082, not the monolith's 8080) and distinct
+# DB_USER/DB_PASSWORD env vars (defaulting to the real dev role V39
+# creates, catalog_service_role - never the monolith's own broader
+# "verdant" user) - the two things that make this a genuinely separate
+# service rather than the same process with a different name.
+server:
+  port: ${SERVER_PORT:8082}
+
+spring:
+  application:
+    name: catalog-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/verdant}
+    username: ${DB_USER:catalog_service_role}
+    password: ${DB_PASSWORD:catalog-service-dev-password}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
