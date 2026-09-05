@@ -25,6 +25,15 @@ public final class AllocationFixtures {
 
     public static final String LOCAL_PINCODE = "411001";
 
+    // Real METRO/REMOTE pincodes, for tests (Week 9 ranking/serviceability)
+    // that need more than one zone to exist at once - a single shared LOCAL
+    // pincode is deliberately not enough once a test cares about the
+    // zone-distance signal itself (nearer-ranks-higher) or the real
+    // transit_estimates-driven serviceability filter (Day 50), rather than
+    // just keeping transit math out of the way as LOCAL_PINCODE does above.
+    public static final String METRO_PINCODE  = "400001"; // Mumbai GPO
+    public static final String REMOTE_PINCODE = "797001"; // Along, Arunachal Pradesh
+
     private AllocationFixtures() { }
 
     public static void seedLocalPincodeZone(JdbcTemplate jdbc) {
@@ -33,6 +42,22 @@ public final class AllocationFixtures {
             VALUES (?, 'Maharashtra', 'LOCAL', TRUE)
             ON CONFLICT DO NOTHING
             """, LOCAL_PINCODE);
+    }
+
+    public static void seedMetroPincodeZone(JdbcTemplate jdbc) {
+        jdbc.update("""
+            INSERT INTO pincode_zones (pincode, state, zone, cod_eligible)
+            VALUES (?, 'Maharashtra', 'METRO', TRUE)
+            ON CONFLICT DO NOTHING
+            """, METRO_PINCODE);
+    }
+
+    public static void seedRemotePincodeZone(JdbcTemplate jdbc) {
+        jdbc.update("""
+            INSERT INTO pincode_zones (pincode, state, zone, cod_eligible)
+            VALUES (?, 'Arunachal Pradesh', 'REMOTE', TRUE)
+            ON CONFLICT DO NOTHING
+            """, REMOTE_PINCODE);
     }
 
     /**
@@ -62,10 +87,27 @@ public final class AllocationFixtures {
     }
 
     public static UUID seedApprovedSeller(JdbcTemplate jdbc, String businessName) {
+        return seedSeller(jdbc, businessName, "APPROVED", LOCAL_PINCODE);
+    }
+
+    /**
+     * General form behind seedApprovedSeller above - lets a test control
+     * status (e.g. SUSPENDED, so ProjectionQueryRepository's real
+     * `active = l.active AND s.status = 'APPROVED'` join correctly
+     * excludes it - see RankingTest.suspendedSellerListings_neverAppear)
+     * and origin pincode (e.g. METRO_PINCODE/REMOTE_PINCODE above, so a
+     * test can control the seller's real origin_zone for ranking/
+     * serviceability - see RankingTest) independently. status is passed
+     * as a raw string rather than SellerStatus: this is a direct fixture
+     * insert bypassing SellerOnboardingService's own state machine
+     * entirely (same as the rest of this class), so there's no
+     * transition to validate here, just a row to seed.
+     */
+    public static UUID seedSeller(JdbcTemplate jdbc, String businessName, String status, String originPincode) {
         return jdbc.queryForObject("""
             INSERT INTO sellers (business_name, status, origin_pincode, quality_score)
-            VALUES (?, 'APPROVED', ?, 0.80) RETURNING id
-            """, UUID.class, businessName, LOCAL_PINCODE);
+            VALUES (?, ?, ?, 0.80) RETURNING id
+            """, UUID.class, businessName, status, originPincode);
     }
 
     public static UUID seedListing(JdbcTemplate jdbc, UUID sellerId, UUID canonicalProductId,

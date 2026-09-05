@@ -26,7 +26,27 @@ public class InventoryService {
      * against the live row under its own row lock at write time, so there is
      * no gap for a concurrent caller to read stale data. 0 rows updated means
      * "not enough stock" - a clean decline, not a race.
+     *
+     * REAL BUG, found by InventoryConcurrencyTest failing after Day 49's
+     * outbox wiring added the MANDATORY-propagation outbox.write() call
+     * below: this method used to rely entirely on being called from
+     * reserveAll()'s own @Transactional for an enclosing transaction to
+     * exist. That is fragile on its own terms (a landmine for any future
+     * caller), and Day 49 turned the latent fragility into a real, live
+     * bug - called standalone with no active transaction, the decrement
+     * and both inserts above each auto-commit individually (plain
+     * JdbcTemplate calls, no transaction), and only THEN does
+     * outbox.write() throw IllegalTransactionStateException - meaning
+     * stock was already, permanently decremented before the exception
+     * was thrown, for every caller that hit this path outside a
+     * transaction. @Transactional here makes reserve() correct standalone
+     * (a real transaction wraps decrement+inserts+outbox write as one
+     * unit again); it does nothing extra when called from reserveAll()'s
+     * own self-invocation (Spring's AOP proxy is skipped on a same-class
+     * call, so this annotation is simply inert there - reserveAll()'s own
+     * outer transaction is what actually applies, same as before).
      */
+    @Transactional
     public boolean reserve(UUID listingId, UUID orderId, int quantity) {
         int rowsUpdated = jdbc.update("""
             UPDATE inventory
@@ -47,10 +67,11 @@ public class InventoryService {
             INSERT INTO inventory_adjustments (listing_id, delta, reason, actor_id)
             VALUES (?, ?, 'SALE', 'system')
             """, listingId, -quantity);
-        // MANDATORY propagation (OutboxWriter, Week 6) - safe here only
-        // because reserve() is never called except from reserveAll(),
-        // which is always @Transactional; called standalone with no
-        // enclosing transaction this would throw immediately.
+        // MANDATORY propagation (OutboxWriter, Week 6) - safe now whether
+        // reserve() is called standalone (its own @Transactional above
+        // provides the transaction) or from reserveAll() (that method's
+        // own @Transactional does instead, via the ambient-transaction
+        // self-invocation behavior described on reserve()'s own comment).
         outbox.write("LISTING", listingId, "INVENTORY_CHANGED", Map.of("listingId", listingId.toString()));
         return true;
     }
@@ -62,7 +83,8 @@ public class InventoryService {
      * Called externally (by CheckoutService, a different bean) so the
      * @Transactional proxy actually applies - an internal self-call from
      * another method on this same class would silently skip it, a common
-     * Spring AOP footgun.
+     * Spring AOP footgun (harmless here now that reserve() itself is also
+     * @Transactional and correct on its own - see its own comment).
      */
     @Transactional
     public void reserveAll(UUID orderId, List<ReservationLine> lines) {
