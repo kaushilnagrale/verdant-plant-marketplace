@@ -82,8 +82,29 @@ public class PayoutCycleRepository {
             paidAt == null ? null : paidAt.toInstant(), (String) row.get("failure_reason"), lineItems);
     }
 
-    public void markApproved(UUID cycleId, String approverId) {
-        jdbc.update("UPDATE payout_cycles SET status = 'APPROVED', approved_by = ? WHERE id = ?", approverId, cycleId);
+    /**
+     * REAL BUG, found while building Day 47's automatic cycle-build job:
+     * this had no status guard at all - an unconditional UPDATE that would
+     * happily flip an already-PAID (or INITIATED, or CANCELLED) cycle's
+     * status back to APPROVED, no matter what state it was actually in.
+     * That silently defeats initiate()'s own idempotency check (which
+     * only special-cases status == PAID) the moment approve() runs again
+     * on an already-completed cycle - a real ops person double-clicking
+     * "approve", a retried request, or (how this was actually caught) a
+     * scheduled job re-processing the same period twice. Reproduced for
+     * real: a cycle paid out by one run of PayoutCycleBuildJob got
+     * silently demoted back to APPROVED by a later run touching the same
+     * already-completed period, and initiate() then tried to pay it out a
+     * SECOND time against an already-drained balance. Guarded exactly
+     * like every other state transition in this project - only a cycle
+     * genuinely still PENDING_APPROVAL can be approved; anything further
+     * along (or already terminal) is untouched.
+     */
+    public boolean markApproved(UUID cycleId, String approverId) {
+        int updated = jdbc.update(
+            "UPDATE payout_cycles SET status = 'APPROVED', approved_by = ? WHERE id = ? AND status = 'PENDING_APPROVAL'",
+            approverId, cycleId);
+        return updated == 1;
     }
 
     /**

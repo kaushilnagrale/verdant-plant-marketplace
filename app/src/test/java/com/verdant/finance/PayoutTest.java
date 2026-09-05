@@ -135,6 +135,29 @@ class PayoutTest extends IntegrationTestBase {
     }
 
     @Test
+    void approvingAnAlreadyPaidCycle_isANoOp_doesNotCorruptStatus() {
+        // Real bug, found while building Day 47's automatic cycle-build
+        // job: markApproved() had no status guard and would blindly
+        // demote an already-PAID cycle back to APPROVED, silently
+        // defeating initiate()'s own idempotency check the next time
+        // someone (a re-run job, a retried request, a double-clicking
+        // ops person) called approve() on it again.
+        UUID cycleId = approvedCycle("500.00");
+        payouts.initiate(cycleId, "ops-1");
+        assertThat(statusOf(cycleId)).isEqualTo(PayoutStatus.PAID.name());
+
+        payouts.approve(cycleId, "ops-1");
+
+        assertThat(statusOf(cycleId))
+            .as("approve() must not move an already-PAID cycle backward")
+            .isEqualTo(PayoutStatus.PAID.name());
+    }
+
+    private String statusOf(UUID cycleId) {
+        return jdbc.queryForObject("SELECT status FROM payout_cycles WHERE id = ?", String.class, cycleId);
+    }
+
+    @Test
     void payoutInitiation_isIdempotent_underRetry() {
         UUID cycleId = approvedCycle("5000.00");
 

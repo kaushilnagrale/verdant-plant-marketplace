@@ -61,3 +61,55 @@ See `LAUNCH_CHECKLIST.md` for the full list of what's genuinely missing
 before this could serve a real customer (live payment keys, a real catalog,
 legal documents, support contact, backup/restore testing, monitoring). None
 of that is faked or implied to be done by this document.
+
+## Payouts and reconciliation
+
+The runbook's Day 47 asks for two things this project genuinely cannot
+produce honestly: a real four-consecutive-day manual observation window
+(there is no way to fast-forward real calendar time), and "the first real
+payout" reaching an actual bank account (there is no real bank account or
+business behind this project — `PayoutGateway` is stub-only by explicit
+decision, Day 44). Faking either would misrepresent what actually happened,
+the same reasoning applied to Days 35-36's soft launch and Week 7's shadow
+observation. What follows is what's actually true instead.
+
+**What's real:**
+- `auto_payout` defaults `false` (`V32__auto_payout_flag.sql`) - every
+  cycle in this project is approved by a human through
+  `PayoutAdminController`, gated to `PLATFORM_ADMIN` only, never a seller.
+- `PayoutCycleBuildJob` runs weekly (Monday 05:00 IST), builds one cycle
+  per approved seller with eligible deliveries for the week that just
+  closed, and correctly isolates one seller's failure from every other
+  seller's cycle in the same run - a real bug, caught and fixed this same
+  day (a struggling seller's `InsufficientPayableException` used to abort
+  the entire batch; verified via `oneSellerFailingAutoInitiate_
+  doesNotBlockAnotherSellersPayout`).
+- The morning checklist queries in 47.1 (`reconciliation_runs`,
+  `reconciliation_breaks`, the global ledger invariant, cycles awaiting
+  approval) all run against a real, populated schema - not aspirational
+  SQL against tables that don't exist.
+- The full approve → initiate → ledger-post → provider-transfer chain is
+  proven end to end against the stub gateway: `PayoutAdminControllerTest`
+  drives it through real HTTP with a real Keycloak-shaped JWT, and
+  `PayoutTest`'s 8-way concurrency test and reversed-on-failure test cover
+  what would matter most if the gateway were ever swapped for a real one.
+
+**What isn't real, and why:**
+- No four-day observation happened - this session ran in one sitting.
+  The mechanism it would rely on (the reconciliation job, the pending-
+  approval query) is real and tested; the passage of real time watching
+  it isn't something a single session can produce.
+- No payout reached a real bank account - `StubPayoutGateway` returns a
+  fabricated provider reference, never calls anything external.
+- `auto_payout` has never been flipped to `true` outside a test - flipping
+  it for real would need the four-day clean streak above to actually have
+  happened first, which it hasn't.
+
+**What would need to be true before a real payout could happen**: a real
+Razorpay (or equivalent) payout/vendor-transfer integration in place of
+`StubPayoutGateway`, a real seller bank account with penny-drop
+verification (flagged back at the Week 7→8 boundary as the user's own
+action item, not something this session can do), and a genuine multi-day
+observation period against real order traffic - none of which currently
+exist, consistent with every other honestly-documented gap in
+`LAUNCH_CHECKLIST.md`.
