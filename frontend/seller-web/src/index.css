@@ -1,0 +1,60 @@
+/* Large touch targets, one hand, possibly in bright sunlight on a
+   nursery floor - 56.1's own framing, not a generic mobile-web reset. */
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  font-family: system-ui, -apple-system, 'Noto Sans Devanagari', sans-serif;
+  font-size: 18px;
+  background: #f7f5f0;
+  color: #1a1a1a;
+}
+
+.app { display: flex; flex-direction: column; height: 100%; }
+
+.screen { padding: 16px; padding-bottom: 96px; overflow-y: auto; flex: 1; }
+.screen h1 { font-size: 1.6rem; margin: 0 0 12px; }
+.screen h2 { font-size: 1.1rem; margin: 20px 0 8px; color: #3a5a30; }
+
+label { display: block; margin-bottom: 14px; font-weight: 600; }
+input, select, textarea {
+  display: block; width: 100%; margin-top: 6px; padding: 12px;
+  font-size: 1.1rem; border: 2px solid #ccc; border-radius: 10px;
+}
+
+.big-button {
+  display: block; width: 100%; padding: 18px; margin: 10px 0;
+  font-size: 1.15rem; font-weight: 700; color: white; background: #3a7d2c;
+  border: none; border-radius: 14px; text-align: center; text-decoration: none;
+}
+.big-button:disabled { background: #a9a9a9; }
+.button-row { display: flex; gap: 10px; }
+.button-row .big-button { flex: 1; }
+
+.order-card {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 10px; padding: 12px; margin-bottom: 8px; background: white;
+  border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.order-card .big-button { width: auto; margin: 0; padding: 12px 16px; font-size: 1rem; }
+
+.pending-badge {
+  background: #fff3cd; color: #7a5b00; padding: 8px 12px;
+  border-radius: 8px; font-weight: 600;
+}
+.tier-badge { font-size: 1.4rem; font-weight: 800; color: #3a7d2c; }
+.status { color: #555; }
+
+.tabbar {
+  display: flex; align-items: center; gap: 4px; padding: 8px;
+  background: white; border-top: 1px solid #ddd;
+  position: fixed; bottom: 0; left: 0; right: 0;
+  overflow-x: auto;
+}
+.tabbar a {
+  flex: 1; text-align: center; padding: 10px 4px; font-size: 0.85rem;
+  text-decoration: none; color: #555; border-radius: 10px; white-space: nowrap;
+}
+.tabbar a.active { background: #eaf4e6; color: #3a7d2c; font-weight: 700; }
+.lang-toggle {
+  padding: 10px; border: none; background: #eee; border-radius: 10px; font-weight: 700;
+}

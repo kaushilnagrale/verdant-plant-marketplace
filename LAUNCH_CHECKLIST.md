@@ -49,10 +49,13 @@ listed as honest gaps, not completed.
       project as having gone through that process; it hasn't.
 - [ ] **Support contact (phone/email/hours)** — no real support operation
       exists to staff one.
-- [ ] **Seller vacation mode / inventory pause** — a real operational
-      feature for real sellers managing real stock; not built, tracked here
-      as a legitimate product backlog item rather than a launch blocker for
-      a simulation.
+- [x] **Seller vacation mode / inventory pause** — built for real (Week 10,
+      `sellers.on_vacation`), enforced as a hard exclusion in the real
+      allocation candidate query: a vacationing seller stops receiving new
+      orders immediately, while anything already allocated/booked is
+      untouched (allocation never re-runs against a settled order).
+      Verified against real infrastructure (`SellerAccountControllerTest`,
+      `SellerOrderControllerTest`).
 - [ ] **Real customer outreach / marketing** — not applicable.
 - [ ] **Database backup + restore runbook, tested restore** — a real
       production requirement (the disaster drill above only tested
@@ -63,6 +66,23 @@ listed as honest gaps, not completed.
 - [ ] **Uptime monitor + error alerting** (e.g. a pinger + Sentry/rollbar
       equivalent) — same category as backups: a legitimate infra gap,
       independent of the "real business" question, not yet built.
+- [ ] **A real human usability session on the seller app** (`frontend/seller-web`) —
+      the runbook's own explicit gate for that week ("sit with her, give no
+      instructions, time three tasks") is a genuine in-person session with a
+      real person this autonomous build session cannot perform. The app
+      itself is real (five working screens against real backend endpoints,
+      a real offline queue with a real concurrency bug found and fixed
+      while testing it, real build/typecheck/unit-test verification - see
+      `frontend/seller-web/README.md`), but no one has actually watched a
+      real seller use it yet. Do that before trusting the screen set, the
+      copy, or the flow are actually right - "every hesitation is a bug"
+      only means something if someone was there to see one.
+- [ ] **Native Hindi review of the seller app's translated labels** -
+      `frontend/seller-web/src/i18n/hi.json` is standard-dictionary Hindi,
+      not reviewed by a native speaker against what a real seller would
+      actually say. The runbook's own guidance here is explicit that
+      guessing produces an interface that reads as translated rather than
+      native - flagged rather than presented as verified.
 
 ## What "soft launch" means for this project
 

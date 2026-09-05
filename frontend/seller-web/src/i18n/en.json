@@ -1,0 +1,18 @@
+{
+  "today": "Today",
+  "toPack": "To pack",
+  "toDispatch": "To dispatch",
+  "markPacked": "Mark packed",
+  "markDispatched": "Mark dispatched",
+  "outOfStock": "Out of stock",
+  "addPlant": "Add plant",
+  "vacationMode": "Vacation mode",
+  "payouts": "Payouts",
+  "quality": "Quality",
+  "stockAdjust": "Stock adjust",
+  "orderDetail": "Order detail",
+  "save": "Save",
+  "loading": "Loading",
+  "signIn": "Sign in",
+  "pendingSync": "Pending sync"
+}

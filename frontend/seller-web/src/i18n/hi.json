@@ -1,0 +1,18 @@
+{
+  "today": "आज",
+  "toPack": "पैक करने के लिए",
+  "toDispatch": "भेजने के लिए",
+  "markPacked": "पैक हो गया",
+  "markDispatched": "भेज दिया",
+  "outOfStock": "स्टॉक खत्म",
+  "addPlant": "पौधा जोड़ें",
+  "vacationMode": "छुट्टी मोड",
+  "payouts": "भुगतान",
+  "quality": "गुणवत्ता",
+  "stockAdjust": "स्टॉक बदलें",
+  "orderDetail": "ऑर्डर विवरण",
+  "save": "सेव करें",
+  "loading": "लोड हो रहा है",
+  "signIn": "साइन इन करें",
+  "pendingSync": "सिंक होना बाकी"
+}

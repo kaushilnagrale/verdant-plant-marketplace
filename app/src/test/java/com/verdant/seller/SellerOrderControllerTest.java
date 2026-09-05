@@ -79,6 +79,14 @@ class SellerOrderControllerTest extends IntegrationTestBase {
         return checkout.orderId();
     }
 
+    /** The seller app's own real sign-in call (lib/api.ts's fetchMySellerId()) - resolves the caller's own internal seller id from their JWT subject. */
+    @Test
+    void me_returnsTheCallersOwnSellerId() throws Exception {
+        mockMvc.perform(get("/v1/seller/orders/me").with(jwt().jwt(j -> j.subject(subjectId))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.sellerId").value(sellerId.toString()));
+    }
+
     @Test
     void myOrders_showsThisSellersOwnOrder() throws Exception {
         UUID orderId = checkoutAndReachShipmentBooked();
@@ -145,6 +153,54 @@ class SellerOrderControllerTest extends IntegrationTestBase {
         mockMvc.perform(post("/v1/seller/orders/" + orderId + "/dispatch").with(jwt().jwt(j -> j.subject(subjectId))))
             .andExpect(status().isConflict());
         assertThat(shipmentStatus(orderId)).isEqualTo("BOOKED");
+    }
+
+    /**
+     * Day 56's own "dispatchActionRetried_afterNetworkFailure_appliesOnce" -
+     * the seller app's own offline queue (queue.ts) retries a dispatch tap
+     * whose response never arrived, and this is the real guarantee behind
+     * that being safe: markDispatched() is a guarded state transition
+     * (WHERE status = 'PACKED', same as every other real atomic-guarded
+     * UPDATE in this project), so a genuine retry after the first call
+     * already succeeded finds nothing left to do and reports it as a 409 -
+     * exactly the "already applied" signal the frontend's own
+     * isPermanent() check (a 4xx) already treats as "drop it, don't keep
+     * retrying" - never a second real dispatch.
+     */
+    @Test
+    void dispatchActionRetried_afterFirstSucceeded_appliesOnce_notTwice() throws Exception {
+        UUID orderId = checkoutAndReachShipmentBooked();
+        mockMvc.perform(post("/v1/seller/orders/" + orderId + "/pack").with(jwt().jwt(j -> j.subject(subjectId))))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/v1/seller/orders/" + orderId + "/dispatch").with(jwt().jwt(j -> j.subject(subjectId))))
+            .andExpect(status().isOk());
+        // The retry - as if the first response never reached the seller's phone.
+        mockMvc.perform(post("/v1/seller/orders/" + orderId + "/dispatch").with(jwt().jwt(j -> j.subject(subjectId))))
+            .andExpect(status().isConflict());
+
+        assertThat(shipmentStatus(orderId)).isEqualTo("DISPATCHED");
+        Integer dispatchEvents = jdbc.queryForObject("""
+            SELECT count(*) FROM seller_quality_events WHERE seller_id = ? AND order_id = ?
+                AND event_type IN ('DISPATCH_ON_TIME','DISPATCH_LATE')
+            """, Integer.class, sellerId, orderId);
+        assertThat(dispatchEvents)
+            .as("the retry never re-ran markDispatched()'s own real quality-event recording a second time")
+            .isEqualTo(1);
+    }
+
+    /** The other real half of vacationMode_stopsNewOrderAllocation_butKeepsExistingFulfillable (SellerAccountControllerTest covers the allocation-stops half) - an order already in this seller's own queue before they went on vacation is untouched, since pack/dispatch never re-run allocation at all. */
+    @Test
+    void vacationMode_doesNotBlockPackingOrDispatchingAnExistingOrder() throws Exception {
+        UUID orderId = checkoutAndReachShipmentBooked();
+        jdbc.update("UPDATE sellers SET on_vacation = true WHERE id = ?", sellerId);
+
+        mockMvc.perform(post("/v1/seller/orders/" + orderId + "/pack").with(jwt().jwt(j -> j.subject(subjectId))))
+            .andExpect(status().isOk());
+        mockMvc.perform(post("/v1/seller/orders/" + orderId + "/dispatch").with(jwt().jwt(j -> j.subject(subjectId))))
+            .andExpect(status().isOk());
+
+        assertThat(shipmentStatus(orderId)).isEqualTo("DISPATCHED");
     }
 
     private String shipmentStatus(UUID orderId) {
