@@ -34,7 +34,7 @@ public class SecurityConfig {
         http
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
-                .requestMatchers("/v1/cart/**", "/v1/checkout/**", "/v1/webhooks/**", "/v1/catalog/**", "/v1/search/**").permitAll()
+                .requestMatchers("/v1/cart/**", "/v1/checkout/**", "/v1/webhooks/**", "/v1/catalog/**", "/v1/search/**", "/v1/assistant/**").permitAll()
                 // Not obvious, found by real end-to-end testing (Week 7) rather
                 // than any prior test - every prior error-path test called the
                 // service method directly or used MockMvc, neither of which
