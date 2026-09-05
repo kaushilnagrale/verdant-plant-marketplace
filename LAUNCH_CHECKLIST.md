@@ -30,6 +30,19 @@ fabricating a company, a legal identity, and a supply chain that don't exist.
       saga → settlement → shipment → seller dispatch) exercised end to end
       with real infrastructure, including compensation paths, across
       Weeks 5–6.
+- [x] AI assistant guardrails (gift concierge / plant doctor, Week 11) — no
+      real LLM or vision provider account exists for this project (same
+      stub-gateway treatment as Razorpay/WhatsApp before those were real),
+      but the actual point of this feature — that a hallucinated
+      recommendation or a fabricated citation never reaches a customer —
+      is verified for real: `validate()`/`validateGrounded()` are exercised
+      against a model stub deliberately configured to misbehave (invent a
+      listing, drop citations, cite an unretrieved chunk, name a specific
+      pesticide), not just against well-behaved output. A 40-case golden
+      set (`AssistantEvalTest`) holds this to fixed thresholds — citation
+      rate 1.00, adversarial hold 1.00, groundedness ≥0.85, outcome
+      accuracy ≥0.90 — across a representative spread of real inputs, not
+      just the scenarios its own author happened to name.
 
 ## Business/operational — NOT done, and why they're out of scope here
 
@@ -83,6 +96,24 @@ listed as honest gaps, not completed.
       actually say. The runbook's own guidance here is explicit that
       guessing produces an interface that reads as translated rather than
       native - flagged rather than presented as verified.
+- [ ] **Real cultural-authority review of gift-concierge occasion content**
+      (`content/knowledge/occasion-*.md`, `cultural-*.md`, Week 11) — the
+      runbook's own design principle is that the model must never
+      generate a cultural or religious claim on its own; that requirement
+      is only pushed one level up, not satisfied, by this session writing
+      the content instead. Every one of these files is explicitly marked
+      `AI-DRAFTED PLACEHOLDER — NOT reviewed or signed off by a real
+      cultural authority` in its own frontmatter. Do not ship this content
+      to a real customer until a real person with standing to speak on it
+      has reviewed it — the retrieval/validation pipeline around it is
+      real and tested, but the content itself is not yet trustworthy.
+- [ ] **Real festival-calendar verification** (`festival_calendar`, V38,
+      Week 11) — the seeded 2026/2027 Raksha Bandhan/Diwali/Holi dates are
+      this project's own best real knowledge, not cross-checked against an
+      authoritative panchang or calendar service. India's major gifting
+      festivals follow a lunisolar calendar and can shift by a day or two
+      year to year; verify before using these dates to actually staff or
+      stock for a real festival period.
 
 ## What "soft launch" means for this project
 
