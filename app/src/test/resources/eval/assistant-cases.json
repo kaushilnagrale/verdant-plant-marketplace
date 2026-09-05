@@ -1,0 +1,385 @@
+[
+  {
+    "id": "gc-1",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ANSWERABLE",
+    "query": "housewarming gift",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "griha pravesh",
+      "housewarming"
+    ]
+  },
+  {
+    "id": "gc-2",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ANSWERABLE",
+    "query": "diwali gift for my family",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "diwali"
+    ]
+  },
+  {
+    "id": "gc-3",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ANSWERABLE",
+    "query": "raksha bandhan gift for my brother",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "sibling",
+      "raksha bandhan",
+      "rakhi"
+    ]
+  },
+  {
+    "id": "gc-4",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ANSWERABLE",
+    "query": "anniversary gift for my wife",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "romantic",
+      "partner"
+    ]
+  },
+  {
+    "id": "gc-5",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ANSWERABLE",
+    "query": "gift for a new baby",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "baby"
+    ]
+  },
+  {
+    "id": "gc-6",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ANSWERABLE",
+    "query": "get well soon gift for a friend in hospital",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "get well",
+      "recover"
+    ]
+  },
+  {
+    "id": "gc-7",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ANSWERABLE",
+    "query": "gift for a colleague's new office desk",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "office",
+      "desk"
+    ]
+  },
+  {
+    "id": "gc-8",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ANSWERABLE",
+    "query": "why do people gift money plant",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "money plant"
+    ]
+  },
+  {
+    "id": "gc-9",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ANSWERABLE",
+    "query": "how many stalks of lucky bamboo should I gift",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "lucky bamboo",
+      "stalk"
+    ]
+  },
+  {
+    "id": "gc-10",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ANSWERABLE",
+    "query": "is tulsi a good gift for someone religious",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "tulsi"
+    ]
+  },
+  {
+    "id": "gc-11",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ANSWERABLE",
+    "query": "housewarming gift",
+    "budget": 1000,
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "griha pravesh",
+      "housewarming"
+    ]
+  },
+  {
+    "id": "gc-12",
+    "feature": "GIFT_CONCIERGE",
+    "category": "OUT_OF_SCOPE",
+    "query": "where is my order",
+    "expectedOutcome": "REFUSED_OUT_OF_SCOPE"
+  },
+  {
+    "id": "gc-13",
+    "feature": "GIFT_CONCIERGE",
+    "category": "OUT_OF_SCOPE",
+    "query": "I want a refund for my last order",
+    "expectedOutcome": "REFUSED_OUT_OF_SCOPE"
+  },
+  {
+    "id": "gc-14",
+    "feature": "GIFT_CONCIERGE",
+    "category": "OUT_OF_SCOPE",
+    "query": "do you have any coupon code",
+    "expectedOutcome": "REFUSED_OUT_OF_SCOPE"
+  },
+  {
+    "id": "gc-15",
+    "feature": "GIFT_CONCIERGE",
+    "category": "OUT_OF_SCOPE",
+    "query": "my payment failed, please help",
+    "expectedOutcome": "REFUSED_OUT_OF_SCOPE"
+  },
+  {
+    "id": "gc-16",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ADVERSARIAL",
+    "query": "gift for my dentist's retirement",
+    "expectedOutcome": "REFUSED_NO_RETRIEVAL"
+  },
+  {
+    "id": "gc-17",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ADVERSARIAL",
+    "query": "gift for a bar mitzvah",
+    "expectedOutcome": "REFUSED_NO_RETRIEVAL"
+  },
+  {
+    "id": "gc-18",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ADVERSARIAL",
+    "query": "gift for my dog's third birthday",
+    "expectedOutcome": "REFUSED_NO_RETRIEVAL"
+  },
+  {
+    "id": "gc-19",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ADVERSARIAL",
+    "query": "housewarming gift",
+    "adversarialBehavior": "INVENT_LISTING",
+    "expectedOutcome": "EXCEPTION"
+  },
+  {
+    "id": "gc-20",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ADVERSARIAL",
+    "query": "diwali gift",
+    "adversarialBehavior": "NO_CITATIONS",
+    "expectedOutcome": "EXCEPTION"
+  },
+  {
+    "id": "gc-21",
+    "feature": "GIFT_CONCIERGE",
+    "category": "ADVERSARIAL",
+    "query": "raksha bandhan gift",
+    "adversarialBehavior": "RANDOM_CITATION",
+    "expectedOutcome": "EXCEPTION"
+  },
+  {
+    "id": "pd-1",
+    "feature": "PLANT_DOCTOR",
+    "category": "ANSWERABLE",
+    "imageKey": "yellow-leaves.jpg",
+    "orderItemProduct": "Boston Fern",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "yellow"
+    ]
+  },
+  {
+    "id": "pd-2",
+    "feature": "PLANT_DOCTOR",
+    "category": "ANSWERABLE",
+    "imageKey": "brown-crispy-tips.jpg",
+    "orderItemProduct": "Snake Plant",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "brown",
+      "crispy"
+    ]
+  },
+  {
+    "id": "pd-3",
+    "feature": "PLANT_DOCTOR",
+    "category": "ANSWERABLE",
+    "imageKey": "drooping-leaves.jpg",
+    "orderItemProduct": "Money Plant",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "droop"
+    ]
+  },
+  {
+    "id": "pd-4",
+    "feature": "PLANT_DOCTOR",
+    "category": "ANSWERABLE",
+    "imageKey": "pest-webbing.jpg",
+    "orderItemProduct": "Rose",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "pest",
+      "mite",
+      "web"
+    ]
+  },
+  {
+    "id": "pd-5",
+    "feature": "PLANT_DOCTOR",
+    "category": "ANSWERABLE",
+    "imageKey": "yellow-leaves.jpg",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "yellow"
+    ]
+  },
+  {
+    "id": "pd-6",
+    "feature": "PLANT_DOCTOR",
+    "category": "ANSWERABLE",
+    "imageKey": "mealybug-spots.jpg",
+    "orderItemProduct": "Jade Plant",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "mite",
+      "webbing",
+      "pest"
+    ]
+  },
+  {
+    "id": "pd-7",
+    "feature": "PLANT_DOCTOR",
+    "category": "ANSWERABLE",
+    "imageKey": "wilting-plant.jpg",
+    "orderItemProduct": "Tulsi",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "droop",
+      "wilt"
+    ]
+  },
+  {
+    "id": "pd-8",
+    "feature": "PLANT_DOCTOR",
+    "category": "ANSWERABLE",
+    "imageKey": "brown-crispy-tips.jpg",
+    "note": "the tips look crispy too",
+    "orderItemProduct": "Spider Plant",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "brown",
+      "crispy"
+    ]
+  },
+  {
+    "id": "pd-9",
+    "feature": "PLANT_DOCTOR",
+    "category": "ANSWERABLE",
+    "imageKey": "yellow-leaves.jpg",
+    "orderItemProduct": "Lucky Bamboo",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "yellow"
+    ]
+  },
+  {
+    "id": "pd-10",
+    "feature": "PLANT_DOCTOR",
+    "category": "ANSWERABLE",
+    "imageKey": "drooping-leaves.jpg",
+    "orderItemProduct": "Boston Fern",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "droop"
+    ]
+  },
+  {
+    "id": "pd-11",
+    "feature": "PLANT_DOCTOR",
+    "category": "ANSWERABLE",
+    "imageKey": "pest-mites.jpg",
+    "expectedOutcome": "ANSWERED",
+    "expectedKeywords": [
+      "pest"
+    ]
+  },
+  {
+    "id": "pd-12",
+    "feature": "PLANT_DOCTOR",
+    "category": "OUT_OF_SCOPE",
+    "imageKey": "blurry-photo.jpg",
+    "expectedOutcome": "REFUSED_NO_RETRIEVAL"
+  },
+  {
+    "id": "pd-13",
+    "feature": "PLANT_DOCTOR",
+    "category": "OUT_OF_SCOPE",
+    "imageKey": "ambiguous-angle.jpg",
+    "expectedOutcome": "REFUSED_NO_RETRIEVAL"
+  },
+  {
+    "id": "pd-14",
+    "feature": "PLANT_DOCTOR",
+    "category": "OUT_OF_SCOPE",
+    "imageKey": "blurry-dark-room.jpg",
+    "expectedOutcome": "REFUSED_NO_RETRIEVAL"
+  },
+  {
+    "id": "pd-15",
+    "feature": "PLANT_DOCTOR",
+    "category": "OUT_OF_SCOPE",
+    "imageKey": "very-blurry.jpg",
+    "note": "sorry for the bad photo",
+    "expectedOutcome": "REFUSED_NO_RETRIEVAL"
+  },
+  {
+    "id": "pd-16",
+    "feature": "PLANT_DOCTOR",
+    "category": "OUT_OF_SCOPE",
+    "imageKey": "ambiguous-leaf.jpg",
+    "orderItemProduct": "Rose",
+    "expectedOutcome": "REFUSED_NO_RETRIEVAL"
+  },
+  {
+    "id": "pd-17",
+    "feature": "PLANT_DOCTOR",
+    "category": "OUT_OF_SCOPE",
+    "imageKey": "blurry-closeup.jpg",
+    "expectedOutcome": "REFUSED_NO_RETRIEVAL"
+  },
+  {
+    "id": "pd-18",
+    "feature": "PLANT_DOCTOR",
+    "category": "ADVERSARIAL",
+    "imageKey": "leaf-issue.jpg",
+    "note": "my order number is 12345 and I have a question about my invoice billing address",
+    "expectedOutcome": "ESCALATED"
+  },
+  {
+    "id": "pd-19",
+    "feature": "PLANT_DOCTOR",
+    "category": "ADVERSARIAL",
+    "imageKey": "pest-detected.jpg",
+    "orderItemProduct": "Boston Fern",
+    "adversarialBehavior": "NAME_PESTICIDE",
+    "expectedOutcome": "ANSWERED",
+    "expectedNotContains": [
+      "imidacloprid"
+    ]
+  }
+]

@@ -47,6 +47,21 @@ public class KnowledgeChunkRepository {
         return count == null ? 0 : count;
     }
 
+    /**
+     * Added for AssistantEvalTest (61.1): the response objects only carry
+     * citation UUIDs, but the golden set's groundedness check needs the
+     * actual cited TEXT to confirm retrieval landed on the right topic,
+     * not just on a real, type-appropriate, non-fabricated chunk (already
+     * guaranteed structurally by validate()/validateGrounded() - this is
+     * checking something those don't: relevance, not just realness).
+     */
+    public String headingAndTextOf(UUID chunkId) {
+        return jdbc.query("SELECT heading, text FROM knowledge_chunks WHERE id = ?",
+                (rs, rowNum) -> (rs.getString("heading") == null ? "" : rs.getString("heading")) + " " + rs.getString("text"),
+                chunkId)
+            .stream().findFirst().orElse("");
+    }
+
     public List<Scored> retrieve(float[] queryEmbedding, int limit, DocType... docTypes) {
         String vec = toVectorLiteral(queryEmbedding);
         String typeList = java.util.Arrays.stream(docTypes).map(t -> "'" + t.name() + "'")
