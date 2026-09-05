@@ -4,7 +4,11 @@ import com.verdant.common.domain.Money;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
@@ -13,6 +17,7 @@ public class StubPaymentGateway implements PaymentGateway {
 
     private final AtomicInteger refundCallCount = new AtomicInteger(0);
     private final AtomicInteger refundFailuresRemaining = new AtomicInteger(0);
+    private final Map<LocalDate, List<ProviderPayment>> capturedByDate = new ConcurrentHashMap<>();
 
     @Override
     public String createOrder(Money amount, String receiptId) {
@@ -37,8 +42,19 @@ public class StubPaymentGateway implements PaymentGateway {
         return refundCallCount.get();
     }
 
+    @Override
+    public List<ProviderPayment> paymentsCapturedOn(LocalDate date) {
+        return capturedByDate.getOrDefault(date, List.of());
+    }
+
+    /** Reconciliation tests (Day 46): controls exactly what "Razorpay" reports for a given day. */
+    public void seedCapturedPayments(LocalDate date, List<ProviderPayment> payments) {
+        capturedByDate.put(date, payments);
+    }
+
     public void reset() {
         refundCallCount.set(0);
         refundFailuresRemaining.set(0);
+        capturedByDate.clear();
     }
 }
