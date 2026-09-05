@@ -70,6 +70,7 @@ public class NotificationService {
             case "HOLD_ESCALATED" -> "A shipment hold has exceeded its maximum duration and needs manual review.";
             case "HOLD_OVERRIDE_ACKNOWLEDGED" -> "Got it - shipping your plant now despite the forecast, as you asked.";
             case "PAYOUT_FAILED" -> "Your payout could not be completed.";
+            case "QUALITY_TIER_CHANGED" -> "Your seller quality tier has changed.";
             default -> eventType;
         };
     }

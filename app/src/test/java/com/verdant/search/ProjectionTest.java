@@ -68,6 +68,7 @@ class ProjectionTest extends SearchIntegrationTestBase {
     @Autowired private com.verdant.search.projection.ProjectionQueryRepository projectionQueryRepository;
     @Autowired private com.verdant.search.projection.SearchProjectionStateRepository searchProjectionStateRepository;
     @Autowired private MeterRegistry meterRegistry;
+    @Autowired private com.verdant.quality.service.QualityScoreService qualityScoreService;
 
     private UUID sellerId;
     private String ownerSubject;
@@ -220,6 +221,61 @@ class ProjectionTest extends SearchIntegrationTestBase {
 
         assertThat(pollUntilInactive(listingA, Duration.ofSeconds(10))).isTrue();
         assertThat(pollUntilInactive(listingB, Duration.ofSeconds(10))).isTrue();
+    }
+
+    /**
+     * Day 54's own fan-out case, same shape as sellerSuspension above -
+     * SELLER_QUALITY_CHANGED reaches ListingProjector on the same real
+     * topic scheme, and fans out to every one of this seller's listings
+     * exactly like SELLER_SUSPENDED/SELLER_APPROVED already do.
+     *
+     * A single recompute() call only produces a real, observable tier
+     * change if the existing record is already close enough to a tier
+     * boundary that one damped step (capped at 0.10) crosses it - seeded
+     * directly here (RESTRICTED at 0.55) rather than relying on two real
+     * recompute() calls in sequence, which would need this test to also
+     * carry its own copy of QualityScorerTest's whole event-seeding
+     * machinery for a fan-out test that isn't really about the scorer's
+     * own math at all.
+     */
+    @Test
+    void sellerQualityChange_propagatesToTheirListingsInTheIndex() throws Exception {
+        UUID listingA = createListing("Projection Quality Fern", "199.00");
+        mapToRealProduct(listingA, "Boston Fern");
+        seedInventory(listingA, 5);
+        reindexQueue.enqueue(listingA, "TEST_SETUP");
+        ListingDocument before = awaitIndexed(listingA, Duration.ofSeconds(10));
+        assertThat(before.sellerQualityScore()).isEqualTo(0.80f); // AllocationFixtures/seedApprovedSeller's own real default
+
+        jdbc.update("""
+            INSERT INTO seller_quality_scores (seller_id, score, components, order_count, is_provisional, tier)
+            VALUES (?, 0.55, '{}'::jsonb, 30, false, 'RESTRICTED')
+            """, sellerId);
+        for (int i = 0; i < 25; i++) {
+            UUID orderId = jdbc.queryForObject("""
+                INSERT INTO orders (buyer_email, status, total_amount, expires_at, paid_at)
+                VALUES ('quality-buyer@example.com', 'PAID', 100.00, now() + interval '15 minutes', now())
+                RETURNING id
+                """, UUID.class);
+            jdbc.update("""
+                INSERT INTO shipments (order_id, seller_id, status, delivered_at) VALUES (?, ?, 'DELIVERED', now())
+                """, orderId, sellerId);
+            jdbc.update("""
+                INSERT INTO seller_quality_events (seller_id, event_type, order_id) VALUES (?, 'DISPATCH_ON_TIME', ?)
+                """, sellerId, orderId);
+        }
+
+        qualityScoreService.recompute(sellerId);
+
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
+        ListingDocument updated;
+        do {
+            updated = awaitIndexed(listingA, Duration.ofSeconds(10));
+        } while (updated.sellerQualityScore() == before.sellerQualityScore() && Instant.now().isBefore(deadline));
+
+        assertThat(updated.sellerQualityScore())
+            .as("the real, damped recomputed score (0.55 + 0.10 cap = 0.65) reached the index, not the old 0.80 default")
+            .isEqualTo(0.65f);
     }
 
     private boolean pollUntilInactive(UUID listingId, Duration timeout) throws Exception {

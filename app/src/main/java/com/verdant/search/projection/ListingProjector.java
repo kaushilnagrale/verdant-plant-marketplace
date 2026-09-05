@@ -60,7 +60,7 @@ public class ListingProjector {
         topics = {
             "verdant.listing_created", "verdant.listing_updated", "verdant.listing_deactivated",
             "verdant.inventory_changed", "verdant.listing_mapped",
-            "verdant.seller_suspended", "verdant.seller_approved"
+            "verdant.seller_suspended", "verdant.seller_approved", "verdant.seller_quality_changed"
         },
         groupId = "search-projector",
         autoStartup = "${verdant.search.projector.autostart:true}")
@@ -76,7 +76,7 @@ public class ListingProjector {
             // here, not reindex inline, so this consumer stays fast and
             // never blocks the partition while a big seller's listings
             // queue up (the runbook's own point about SELLER_SUSPENDED).
-            case "SELLER_SUSPENDED", "SELLER_APPROVED"
+            case "SELLER_SUSPENDED", "SELLER_APPROVED", "SELLER_QUALITY_CHANGED"
                 -> listings.findIdsBySellerId(UUID.fromString(node.get("sellerId").asString()));
 
             default -> {

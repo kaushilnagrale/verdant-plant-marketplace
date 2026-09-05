@@ -165,6 +165,22 @@ class ShipmentBookingTest extends IntegrationTestBase {
         assertThat(shipmentEvents.countByShipmentId(id)).isEqualTo(1);
     }
 
+    /** Real quality-scoring wiring (Week 10) - RTO_RECEIVED, recorded once per shipment even if the projector re-runs against a duplicated/re-ordered event log (this class's own real-world reason to exist). */
+    @Test
+    void shipmentReachingRto_recordsRtoQualityEventExactlyOnce() throws Exception {
+        UUID id = createShipment();
+        booking.book(id);
+
+        postTracking(id, "RTO", "evt_1", Instant.now());
+        statusProjector.project(id); // a genuine re-run - the same real duplicate/late-webhook scenario this whole class tests
+
+        UUID sellerId = jdbc.queryForObject("SELECT seller_id FROM shipments WHERE id = ?", UUID.class, id);
+        Integer count = jdbc.queryForObject(
+            "SELECT count(*) FROM seller_quality_events WHERE seller_id = ? AND event_type = 'RTO_RECEIVED'",
+            Integer.class, sellerId);
+        assertThat(count).isEqualTo(1);
+    }
+
     @Test
     void bookingDisabledByFlag_leavesShipmentBookedForManualDispatch() throws Exception {
         setFlag("shiprocket_booking", false, false);

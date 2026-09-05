@@ -47,6 +47,24 @@ public class CandidateFinder {
               JOIN transit_estimates te ON te.origin_zone = origin_pz.zone
                                         AND te.destination_zone = dest_pz.zone
              WHERE l.canonical_product_id = ? AND l.active = true
+               -- Tier.maxOpenOrders() (Week 10), inlined: no stored
+               -- procedures anywhere else in this project, and a real
+               -- per-candidate Java-side lookup would mean N+1 queries -
+               -- exactly what this class's own header comment already
+               -- avoids for the query as a whole. A seller with no
+               -- computed score yet (LEFT JOIN, no row) defaults to
+               -- STANDARD's unlimited cap, same as a brand new seller
+               -- with no quality history should reasonably be treated.
+               -- Kept in sync with Tier.java by hand; QualityIntegrationTest
+               -- exercises this real cap end to end, not just Tier's own
+               -- enum values in isolation.
+               AND (SELECT count(*) FROM shipments sh
+                     WHERE sh.seller_id = s.id
+                       AND sh.status NOT IN ('DELIVERED','CANCELLED','RTO','FAILED'))
+                   < COALESCE(
+                       (SELECT CASE sqs.tier WHEN 'PROBATION' THEN 5 WHEN 'RESTRICTED' THEN 2 ELSE 2147483647 END
+                          FROM seller_quality_scores sqs WHERE sqs.seller_id = s.id),
+                       2147483647)
              ORDER BY l.id
             """, destinationPincode, canonicalProductId);
 

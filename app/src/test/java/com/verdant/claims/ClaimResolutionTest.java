@@ -142,6 +142,48 @@ class ClaimResolutionTest extends IntegrationTestBase {
         assertThat(ledger.balance(platform(AccountType.COURIER_RECEIVABLE))).isEqualTo(receivableBefore.plus(Money.of("349.00")));
     }
 
+    /**
+     * Real quality-scoring wiring (Week 10) - "only Fault.SELLER upheld
+     * claims count" (53.4's own emphasis). Proven here at the real
+     * resolve() call site, not just at QualityScorer's own math level
+     * (QualityScorerTest covers that separately): a courier-fault claim
+     * is never the seller's failure, so it must never even appear in
+     * their own quality-events audit log, not just fail to affect the
+     * score.
+     */
+    @Test
+    void claimWithCourierFault_neverRecordsASellerQualityEvent() {
+        UUID claimId = claimWithFault(Fault.COURIER, "349.00");
+
+        resolution.resolve(claimId, Resolution.REFUND, Money.of("349.00"), "ops-1");
+
+        Integer count = jdbc.queryForObject(
+            "SELECT count(*) FROM seller_quality_events WHERE seller_id = ?", Integer.class, sellerId);
+        assertThat(count).isZero();
+    }
+
+    @Test
+    void rejectedClaim_recordsInformationalEventOnly_neverUpheld() {
+        UUID claimId = claimWithFault(Fault.SELLER, "349.00");
+
+        resolution.resolve(claimId, Resolution.REJECTED, Money.of("0.00"), "ops-1");
+
+        List<String> eventTypes = jdbc.queryForList(
+            "SELECT event_type FROM seller_quality_events WHERE seller_id = ?", String.class, sellerId);
+        assertThat(eventTypes).containsExactly("CLAIM_REJECTED");
+    }
+
+    @Test
+    void upheldSellerFaultClaim_recordsClaimUpheldEvent() {
+        UUID claimId = claimWithFault(Fault.SELLER, "349.00");
+
+        resolution.resolve(claimId, Resolution.REFUND, Money.of("349.00"), "ops-1");
+
+        List<String> eventTypes = jdbc.queryForList(
+            "SELECT event_type FROM seller_quality_events WHERE seller_id = ?", String.class, sellerId);
+        assertThat(eventTypes).containsExactly("CLAIM_UPHELD");
+    }
+
     @Test
     void weatherOverrideByPlatform_attributesFaultToPlatform() {
         UUID orderItemId = newOrderItem(Fault.UNDETERMINED, "349.00");

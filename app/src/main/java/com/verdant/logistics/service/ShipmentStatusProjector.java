@@ -1,6 +1,7 @@
 package com.verdant.logistics.service;
 
 import com.verdant.logistics.domain.ShipmentStatus;
+import com.verdant.quality.service.SellerQualityEventRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -9,6 +10,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -25,9 +27,11 @@ public class ShipmentStatusProjector {
     private static final Duration CLAIM_WINDOW = Duration.ofHours(72);
 
     private final JdbcTemplate jdbc;
+    private final SellerQualityEventRepository qualityEvents;
 
-    public ShipmentStatusProjector(JdbcTemplate jdbc) {
+    public ShipmentStatusProjector(JdbcTemplate jdbc, SellerQualityEventRepository qualityEvents) {
         this.jdbc = jdbc;
+        this.qualityEvents = qualityEvents;
     }
 
     public void project(UUID shipmentId) {
@@ -49,6 +53,33 @@ public class ShipmentStatusProjector {
         if (furthest == ShipmentStatus.DELIVERED) {
             recordDeliveryAndOpenClaimWindows(shipmentId);
         }
+        if (furthest == ShipmentStatus.RTO) {
+            recordRtoQualityEvent(shipmentId);
+        }
+    }
+
+    /**
+     * Real quality signal (Week 10) - idempotency checked against
+     * seller_quality_events itself (an EXISTS query) rather than a new
+     * dedicated "rto_at" column: this is the one real place RTO ever gets
+     * recorded for scoring, and project() can genuinely re-run against
+     * the same duplicated/re-ordered webhook log (this whole method's own
+     * class comment), so a re-run must not double-count it.
+     */
+    private void recordRtoQualityEvent(UUID shipmentId) {
+        Map<String, Object> row = jdbc.queryForMap(
+            "SELECT order_id, seller_id FROM shipments WHERE id = ?", shipmentId);
+        UUID orderId = (UUID) row.get("order_id");
+        UUID sellerId = (UUID) row.get("seller_id");
+
+        Boolean alreadyRecorded = jdbc.queryForObject("""
+            SELECT EXISTS(SELECT 1 FROM seller_quality_events
+                           WHERE seller_id = ? AND order_id = ? AND event_type = 'RTO_RECEIVED')
+            """, Boolean.class, sellerId, orderId);
+        if (Boolean.TRUE.equals(alreadyRecorded)) {
+            return;
+        }
+        qualityEvents.record(sellerId, "RTO_RECEIVED", orderId);
     }
 
     /**

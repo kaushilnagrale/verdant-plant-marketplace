@@ -101,6 +101,43 @@ class SellerOrderControllerTest extends IntegrationTestBase {
         assertThat(shipmentStatus(orderId)).isEqualTo("DISPATCHED");
     }
 
+    /** Real quality-scoring wiring (Week 10) - planned_dispatch_date (StubLogisticsGateway) is always at least tomorrow (CURRENT_DATE + ceil(handling_time_hours/24), and every listing here defaults to 24h), so dispatching immediately after booking is always genuinely on time. */
+    @Test
+    void dispatch_withinHandlingTime_recordsOnTimeQualityEvent() throws Exception {
+        UUID orderId = checkoutAndReachShipmentBooked();
+        mockMvc.perform(post("/v1/seller/orders/" + orderId + "/pack").with(jwt().jwt(j -> j.subject(subjectId))))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/v1/seller/orders/" + orderId + "/dispatch").with(jwt().jwt(j -> j.subject(subjectId))))
+            .andExpect(status().isOk());
+
+        List<String> eventTypes = jdbc.queryForList(
+            "SELECT event_type FROM seller_quality_events WHERE seller_id = ? AND order_id = ?",
+            String.class, sellerId, orderId);
+        assertThat(eventTypes).containsExactly("DISPATCH_ON_TIME");
+    }
+
+    @Test
+    void dispatch_pastHandlingTime_recordsLateQualityEvent() throws Exception {
+        UUID orderId = checkoutAndReachShipmentBooked();
+        mockMvc.perform(post("/v1/seller/orders/" + orderId + "/pack").with(jwt().jwt(j -> j.subject(subjectId))))
+            .andExpect(status().isOk());
+        // Back-date the deadline itself, same technique OrderExpiryServiceTest
+        // already established for simulating "time has passed" without a
+        // real sleep - dispatching "now" against a deadline of yesterday is
+        // unambiguously late, regardless of when this test happens to run.
+        jdbc.update("UPDATE shipments SET planned_dispatch_date = CURRENT_DATE - 1 WHERE order_id = ? AND seller_id = ?",
+            orderId, sellerId);
+
+        mockMvc.perform(post("/v1/seller/orders/" + orderId + "/dispatch").with(jwt().jwt(j -> j.subject(subjectId))))
+            .andExpect(status().isOk());
+
+        List<String> eventTypes = jdbc.queryForList(
+            "SELECT event_type FROM seller_quality_events WHERE seller_id = ? AND order_id = ?",
+            String.class, sellerId, orderId);
+        assertThat(eventTypes).containsExactly("DISPATCH_LATE");
+    }
+
     @Test
     void dispatch_withoutPackingFirst_isRejected() throws Exception {
         UUID orderId = checkoutAndReachShipmentBooked();

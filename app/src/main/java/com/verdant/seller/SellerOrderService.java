@@ -1,5 +1,6 @@
 package com.verdant.seller;
 
+import com.verdant.quality.service.SellerQualityEventRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -7,6 +8,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,9 +20,11 @@ import java.util.stream.Collectors;
 public class SellerOrderService {
 
     private final JdbcTemplate jdbc;
+    private final SellerQualityEventRepository qualityEvents;
 
-    public SellerOrderService(JdbcTemplate jdbc) {
+    public SellerOrderService(JdbcTemplate jdbc, SellerQualityEventRepository qualityEvents) {
         this.jdbc = jdbc;
+        this.qualityEvents = qualityEvents;
     }
 
     /** Only this seller's own items within an order - a multi-seller order never leaks another seller's lines. */
@@ -74,5 +79,31 @@ public class SellerOrderService {
         if (rows == 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Shipment is not in a dispatchable state");
         }
+        recordDispatchQualityEvent(sellerId, orderId);
+    }
+
+    /**
+     * Real quality signal (Week 10), deliberately a PLAIN comparison
+     * against planned_dispatch_date - not FaultAttributor's own, more
+     * lenient +24h threshold (Week 8). Those answer different real
+     * questions: FaultAttributor decides who pays for a dead plant, and
+     * gives the seller a generous benefit of the doubt before assigning
+     * financial liability; this decides whether the seller met the
+     * delivery-time promise they themselves made, which is the plain,
+     * direct thing 53.2 asks for ("dispatched within your stated handling
+     * time"), no extra grace. planned_dispatch_date is a DATE - dispatch
+     * counts as on time any time during that calendar day (IST), i.e.
+     * strictly before the day after it starts.
+     */
+    private void recordDispatchQualityEvent(UUID sellerId, UUID orderId) {
+        Map<String, Object> row = jdbc.queryForMap("""
+            SELECT planned_dispatch_date, dispatched_at FROM shipments WHERE order_id = ? AND seller_id = ?
+            """, orderId, sellerId);
+        LocalDate plannedDate = ((java.sql.Date) row.get("planned_dispatch_date")).toLocalDate();
+        var dispatchedAt = ((Timestamp) row.get("dispatched_at")).toInstant();
+        var deadline = plannedDate.plusDays(1).atStartOfDay(ZoneId.of("Asia/Kolkata")).toInstant();
+
+        String eventType = dispatchedAt.isBefore(deadline) ? "DISPATCH_ON_TIME" : "DISPATCH_LATE";
+        qualityEvents.record(sellerId, eventType, orderId);
     }
 }

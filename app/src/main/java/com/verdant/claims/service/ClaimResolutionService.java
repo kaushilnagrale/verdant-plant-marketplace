@@ -2,6 +2,7 @@ package com.verdant.claims.service;
 
 import com.verdant.claims.domain.Claim;
 import com.verdant.claims.domain.ClaimStatus;
+import com.verdant.claims.domain.Fault;
 import com.verdant.claims.domain.Resolution;
 import com.verdant.common.domain.Money;
 import com.verdant.finance.domain.AccountType;
@@ -9,6 +10,7 @@ import com.verdant.finance.domain.LedgerTransaction;
 import com.verdant.finance.service.AccountResolver;
 import com.verdant.finance.service.LedgerService;
 import com.verdant.finance.service.LedgerService.EntrySpec;
+import com.verdant.quality.service.SellerQualityEventRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -55,12 +57,15 @@ public class ClaimResolutionService {
     private final LedgerService ledger;
     private final AccountResolver accounts;
     private final JdbcTemplate jdbc;
+    private final SellerQualityEventRepository qualityEvents;
 
-    public ClaimResolutionService(ClaimRepository claims, LedgerService ledger, AccountResolver accounts, JdbcTemplate jdbc) {
+    public ClaimResolutionService(ClaimRepository claims, LedgerService ledger, AccountResolver accounts,
+                                   JdbcTemplate jdbc, SellerQualityEventRepository qualityEvents) {
         this.claims = claims;
         this.ledger = ledger;
         this.accounts = accounts;
         this.jdbc = jdbc;
+        this.qualityEvents = qualityEvents;
     }
 
     public Claim resolve(UUID claimId, Resolution resolution, Money amount, String actorId) {
@@ -70,6 +75,21 @@ public class ClaimResolutionService {
             return claim; // idempotent
         }
 
+        // REAL BUG, found by actually exercising Resolution.REJECTED for
+        // the first time (no prior test in this whole project ever had):
+        // this method used to post a ledger transaction unconditionally,
+        // for every resolution type - a REJECTED claim (the buyer's claim
+        // was denied, nothing owed to anyone) has no real amount to post
+        // at all, and even a genuinely zero amount fails the ledger's own
+        // real amount != 0 invariant (ledger_entries_amount_check) rather
+        // than silently doing nothing. A rejected claim skips the ledger
+        // entirely - there is no transaction, not a zero-value one.
+        if (resolution == Resolution.REJECTED) {
+            claims.recordResolution(claimId, resolution, Money.ZERO, null, actorId);
+            recordQualityEvent(claim, resolution);
+            return claims.findById(claimId);
+        }
+
         LedgerTransaction txn = switch (claim.fault()) {
             case SELLER -> debitSeller(claim, amount);
             case COURIER -> debitCourierRecoverable(claim, amount);
@@ -77,6 +97,7 @@ public class ClaimResolutionService {
         };
 
         claims.recordResolution(claimId, resolution, amount, txn.getId(), actorId);
+        recordQualityEvent(claim, resolution);
 
         // Resolution.REPLACEMENT would also need a new order/shipment
         // created and shipped - real, separate feature, not built this
@@ -85,6 +106,26 @@ public class ClaimResolutionService {
         // re-shipment is the open piece.
 
         return claims.findById(claimId);
+    }
+
+    /**
+     * Real quality signal (Week 10) - "only Fault.SELLER upheld claims
+     * count" (53.4's own emphasis, the two tests it calls out as
+     * mattering most): a REJECTED claim never penalises anyone regardless
+     * of fault, recorded here as informational only (QualityScorer's own
+     * claimRate divides by totalDelivered, not total claims filed, so
+     * this row is audit trail for the seller to see, not scoring input).
+     * A courier/platform/buyer/undetermined-fault claim gets NO event at
+     * all here - it was never the seller's failure, so it doesn't belong
+     * in their own audit log, not even as a zero-weight entry.
+     */
+    private void recordQualityEvent(Claim claim, Resolution resolution) {
+        UUID sellerId = sellerIdFor(claim.orderItemId());
+        if (resolution == Resolution.REJECTED) {
+            qualityEvents.record(sellerId, "CLAIM_REJECTED", null);
+        } else if (claim.fault() == Fault.SELLER) {
+            qualityEvents.record(sellerId, "CLAIM_UPHELD", null);
+        }
     }
 
     /** Seller fault: reduce what we owe them. */
