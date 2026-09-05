@@ -49,4 +49,15 @@ verdant:
   dispatch:
     orchestration-initial-delay-ms: 999999999
     orchestration-interval-ms: 999999999
+  # ListingProjector's @KafkaListener (Week 9) is the first real Kafka
+  # consumer this project has - unlike EventPublisher/StubEventPublisher
+  # on the producer side, there is no test-profile stand-in for a
+  # @KafkaListener's listener container, which actively tries to connect
+  # to a real broker regardless. Only IntegrationTestBase's Postgres+Redis
+  # run for the other ~190 tests in this project; none of them have a
+  # real Kafka broker, so autoStartup defaults off here and
+  # SearchIntegrationTestBase turns it back on for the tests that do.
+  search:
+    projector:
+      autostart: false
 

@@ -11,6 +11,11 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: search-projector
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   security.oauth2.resourceserver.jwt:
     issuer-uri: ${OIDC_ISSUER_URI}
   ai:
@@ -49,3 +54,7 @@ verdant:
   # would have failed every single run against a real deployment.
   weather:
     api-key: ${WEATHER_API_KEY}
+  # Added proactively this time (Week 9) - Day 31/Week 7's own gaps here
+  # were both found reactively, by dockerize.sh actually failing first.
+  search:
+    opensearch-uri: ${OPENSEARCH_URI}

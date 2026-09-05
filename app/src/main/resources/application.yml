@@ -1,8 +1,46 @@
 spring:
   application.name: verdant
+  # REAL GAP, found by Week 9's own scheduled job (ReindexWorker) timing
+  # out waiting for CPU it never got: Spring's default scheduled-task pool
+  # size is 1, meaning every @Scheduled job in this entire application -
+  # OutboxDrainer, the saga orchestrator, both expiry sweepers, the
+  # snapshot/forecast/hold/dispatch/payout-build jobs, and now
+  # ReindexWorker - has always shared a single thread. Never surfaced
+  # before because nothing scheduled ever legitimately blocked for long;
+  # OutboxDrainer's real KafkaEventPublisher.publish() blocks up to 5
+  # seconds per send (kafka.send(...).get(5, TimeUnit.SECONDS)), and this
+  # week is the first time a real broker - not the test stub - was
+  # actually in the loop during automated tests, so it's the first time
+  # that 5-second block could genuinely starve every OTHER scheduled job
+  # of the one shared thread. A real, if previously invisible, production
+  # risk too - not just a test artifact.
+  task.scheduling.pool.size: 10
   jpa:
     hibernate.ddl-auto: validate
-    properties.hibernate.format_sql: true
+    properties:
+      hibernate.format_sql: true
+      # Explicit, not left to auto-detection (Week 9 finding): Hibernate's
+      # JSON column support (@JdbcTypeCode(SqlTypes.JSON), OutboxEvent.payload
+      # since Week 6) picks a FormatMapper by scanning the classpath for a
+      # known JSON library. Adding the OpenSearch client pulled in a
+      # Jakarta JSON-P implementation (org.eclipse.parsson) as a transitive
+      # dependency it genuinely needs at runtime (its own SPI lookup, not
+      # removable) - auto-detection silently switched to that instead of
+      # Jackson, and it has no idea how to (de)serialize
+      # tools.jackson.databind.JsonNode.
+      #
+      # The short alias "jackson" is NOT enough on its own, and picking it
+      # was a real intermediate mistake here: Hibernate 7 ships TWO
+      # separate Jackson FormatMappers - JacksonJsonFormatMapper (the
+      # legacy com.fasterxml.jackson.databind one, what "jackson" as a
+      # bare alias resolves to) and Jackson3JsonFormatMapper (the one that
+      # actually understands tools.jackson.databind types, matching Boot
+      # 4's own Jackson 3.x migration, Week 6). "jackson" alone silently
+      # picked the wrong one - same failure shape as auto-detection
+      # picking Jakarta JSON-P, just a different wrong answer - so the
+      # fully-qualified class name is used instead of trusting either
+      # alias.
+      hibernate.type.json_format_mapper: org.hibernate.type.format.jackson.Jackson3JsonFormatMapper
     open-in-view: false
   flyway:
     enabled: true

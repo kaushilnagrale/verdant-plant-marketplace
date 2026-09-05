@@ -13,6 +13,11 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: search-projector
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
   security.oauth2.resourceserver.jwt:
     issuer-uri: http://localhost:8081/realms/verdant
   ai:
@@ -41,3 +46,5 @@ verdant:
   mapping:
     auto-threshold: 0.030
     review-threshold: 0.012
+  search:
+    opensearch-uri: http://localhost:9200

@@ -8,8 +8,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+// "test & !search-test" rather than a plain "test" (Week 9): must yield
+// to the real KafkaEventPublisher for search tests specifically, which
+// have a real broker and need a real round trip - see that class's own
+// doc comment.
 @Component
-@Profile("test")
+@Profile("test & !search-test")
 public class StubEventPublisher implements EventPublisher {
 
     private final List<Published> sent = Collections.synchronizedList(new ArrayList<>());

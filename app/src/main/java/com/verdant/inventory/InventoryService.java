@@ -1,19 +1,23 @@
 package com.verdant.inventory;
 
+import com.verdant.common.outbox.OutboxWriter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
 public class InventoryService {
 
     private final JdbcTemplate jdbc;
+    private final OutboxWriter outbox;
 
-    public InventoryService(JdbcTemplate jdbc) {
+    public InventoryService(JdbcTemplate jdbc, OutboxWriter outbox) {
         this.jdbc = jdbc;
+        this.outbox = outbox;
     }
 
     /**
@@ -43,6 +47,11 @@ public class InventoryService {
             INSERT INTO inventory_adjustments (listing_id, delta, reason, actor_id)
             VALUES (?, ?, 'SALE', 'system')
             """, listingId, -quantity);
+        // MANDATORY propagation (OutboxWriter, Week 6) - safe here only
+        // because reserve() is never called except from reserveAll(),
+        // which is always @Transactional; called standalone with no
+        // enclosing transaction this would throw immediately.
+        outbox.write("LISTING", listingId, "INVENTORY_CHANGED", Map.of("listingId", listingId.toString()));
         return true;
     }
 

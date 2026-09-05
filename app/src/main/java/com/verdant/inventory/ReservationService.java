@@ -1,7 +1,10 @@
 package com.verdant.inventory;
 
+import com.verdant.common.outbox.OutboxWriter;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.List;
 import java.util.Map;
@@ -11,9 +14,13 @@ import java.util.UUID;
 public class ReservationService {
 
     private final JdbcTemplate jdbc;
+    private final OutboxWriter outbox;
+    private final TransactionTemplate tx;
 
-    public ReservationService(JdbcTemplate jdbc) {
+    public ReservationService(JdbcTemplate jdbc, OutboxWriter outbox, PlatformTransactionManager txManager) {
         this.jdbc = jdbc;
+        this.outbox = outbox;
+        this.tx = new TransactionTemplate(txManager);
     }
 
     /**
@@ -43,27 +50,45 @@ public class ReservationService {
         return doRelease(reservationId, false);
     }
 
+    /**
+     * Wrapped in its own TransactionTemplate rather than a plain
+     * @Transactional on release()/releaseForRefund(): both of those are
+     * called two ways - directly from outside this bean, and via
+     * self-invocation from releaseByOrder()/releaseExpired() further down
+     * in this same class. A self-invoked call never goes through the
+     * Spring proxy, so an @Transactional annotation on release() itself
+     * would silently be skipped on exactly that second path - the same
+     * self-invocation footgun already hit and fixed this same way
+     * elsewhere in this project (OrderSagaOrchestrator, Day 33). This
+     * also closes a real, if rarely triggered, pre-existing atomicity gap
+     * on its own merits: before this, a crash between marking the
+     * reservation released and crediting the stock back would leave
+     * released_at set with the stock never actually returned - now either
+     * both happen or neither does.
+     */
     private boolean doRelease(UUID reservationId, boolean respectFulfilled) {
-        List<Map<String, Object>> released = respectFulfilled
-            ? jdbc.queryForList("""
-                UPDATE reservations SET released_at = now()
-                 WHERE id = ? AND released_at IS NULL AND fulfilled_at IS NULL
-                RETURNING listing_id, quantity
-                """, reservationId)
-            : jdbc.queryForList("""
-                UPDATE reservations SET released_at = now()
-                 WHERE id = ? AND released_at IS NULL
-                RETURNING listing_id, quantity
-                """, reservationId);
+        return Boolean.TRUE.equals(tx.execute(status -> {
+            List<Map<String, Object>> released = respectFulfilled
+                ? jdbc.queryForList("""
+                    UPDATE reservations SET released_at = now()
+                     WHERE id = ? AND released_at IS NULL AND fulfilled_at IS NULL
+                    RETURNING listing_id, quantity
+                    """, reservationId)
+                : jdbc.queryForList("""
+                    UPDATE reservations SET released_at = now()
+                     WHERE id = ? AND released_at IS NULL
+                    RETURNING listing_id, quantity
+                    """, reservationId);
 
-        if (released.isEmpty()) {
-            return false;
-        }
+            if (released.isEmpty()) {
+                return false;
+            }
 
-        UUID listingId = (UUID) released.get(0).get("listing_id");
-        int quantity = (int) released.get(0).get("quantity");
-        creditBack(listingId, quantity);
-        return true;
+            UUID listingId = (UUID) released.get(0).get("listing_id");
+            int quantity = (int) released.get(0).get("quantity");
+            creditBack(listingId, quantity);
+            return true;
+        }));
     }
 
     private void creditBack(UUID listingId, int quantity) {
@@ -75,6 +100,7 @@ public class ReservationService {
             INSERT INTO inventory_adjustments (listing_id, delta, reason, actor_id)
             VALUES (?, ?, 'RESERVATION_RELEASE', 'system')
             """, listingId, quantity);
+        outbox.write("LISTING", listingId, "INVENTORY_CHANGED", Map.of("listingId", listingId.toString()));
     }
 
     /**

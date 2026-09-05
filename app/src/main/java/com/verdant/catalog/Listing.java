@@ -25,6 +25,16 @@ public class Listing {
     @Column(name = "handling_time_hours", nullable = false)
     private Integer handlingTimeHours = 24;
 
+    // Real columns since V5 (Week 3) that this entity never mapped until
+    // now - nothing needed to read or write them before ListingController
+    // gained real update/deactivate endpoints (Week 9), so they simply
+    // sat unused on every Listing row this whole project.
+    @Column(name = "description")
+    private String description;
+
+    @Column(name = "active", nullable = false)
+    private boolean active = true;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private Instant createdAt;
 
@@ -53,8 +63,19 @@ public class Listing {
     public String getRawTitle() { return rawTitle; }
     public BigDecimal getPriceAmount() { return priceAmount; }
     public Integer getHandlingTimeHours() { return handlingTimeHours; }
+    public String getDescription() { return description; }
+    public boolean isActive() { return active; }
     public Instant getCreatedAt() { return createdAt; }
     public UUID getCanonicalProductId() { return canonicalProductId; }
     public Float getMappingConfidence() { return mappingConfidence; }
     public String getMappingStatus() { return mappingStatus; }
+
+    public void updatePrice(BigDecimal newPrice) {
+        this.priceAmount = newPrice;
+    }
+
+    /** One-way in practice - nothing in this project ever reactivates a listing, matching how a seller would actually use this (pull a listing down for good, not toggle it). */
+    public void deactivate() {
+        this.active = false;
+    }
 }

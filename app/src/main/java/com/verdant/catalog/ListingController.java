@@ -1,15 +1,19 @@
 package com.verdant.catalog;
 
+import com.verdant.common.outbox.OutboxWriter;
 import com.verdant.identity.SellerUserRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import com.verdant.catalog.mapping.ListingMappingWorker;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -20,21 +24,34 @@ public class ListingController {
     private final SellerUserRepository sellerUsers;
     private final ListingImageService imageService;
     private final ListingMappingWorker mappingWorker;
+    private final OutboxWriter outbox;
 
     public ListingController(ListingRepository listings, SellerUserRepository sellerUsers,
-                              ListingImageService imageService, ListingMappingWorker mappingWorker) {
+                              ListingImageService imageService, ListingMappingWorker mappingWorker,
+                              OutboxWriter outbox) {
         this.listings = listings;
         this.sellerUsers = sellerUsers;
         this.imageService = imageService;
         this.mappingWorker = mappingWorker;
+        this.outbox = outbox;
     }
 
+    // @Transactional added here (and on updatePrice()/deactivate() below)
+    // specifically because of the outbox.write() call each now makes -
+    // OutboxWriter.write() is MANDATORY propagation (Week 6), meaning it
+    // throws immediately if there is no already-open transaction to join.
+    // Before this week nothing in this controller ever needed one: a
+    // single repository save() already gets its own transaction from
+    // Spring Data, but that transaction closes before control returns
+    // here, so writing to the outbox afterward would join nothing.
+    @Transactional
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Listing create(@AuthenticationPrincipal Jwt jwt, @RequestBody CreateListingRequest request) {
         UUID sellerId = currentSellerId(jwt);
         Listing saved = listings.save(new Listing(sellerId, request.rawTitle(), request.priceAmount()));
         mappingWorker.mapListing(saved.getId(), request.rawTitle(), null);
+        outbox.write("LISTING", saved.getId(), "LISTING_CREATED", Map.of("listingId", saved.getId().toString()));
         return saved;
     }
 
@@ -75,6 +92,43 @@ public class ListingController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your listing");
         }
         imageService.upload(id, file);
+    }
+
+    // Neither existed before this week - a seller had no way to correct a
+    // price or pull a listing down through the real API at all (the
+    // underlying columns, price_amount/active, obviously already did).
+    // Built now because LISTING_UPDATED/LISTING_DEACTIVATED need a real
+    // producer to mean anything for the search projection pipeline
+    // (Week 9), not as a general listing-management feature push.
+
+    @Transactional
+    @PatchMapping("/{id}")
+    public Listing updatePrice(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                @RequestBody UpdateListingRequest request) {
+        UUID sellerId = currentSellerId(jwt);
+        Listing listing = listings.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!listing.getSellerId().equals(sellerId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your listing");
+        }
+        listing.updatePrice(request.priceAmount());
+        Listing saved = listings.save(listing);
+        outbox.write("LISTING", id, "LISTING_UPDATED", Map.of("listingId", id.toString()));
+        return saved;
+    }
+
+    @Transactional
+    @PostMapping("/{id}/deactivate")
+    public void deactivate(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        UUID sellerId = currentSellerId(jwt);
+        Listing listing = listings.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (!listing.getSellerId().equals(sellerId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your listing");
+        }
+        listing.deactivate();
+        listings.save(listing);
+        outbox.write("LISTING", id, "LISTING_DEACTIVATED", Map.of("listingId", id.toString()));
     }
 
     private UUID currentSellerId(Jwt jwt) {

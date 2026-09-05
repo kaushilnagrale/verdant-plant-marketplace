@@ -6,8 +6,14 @@ import org.springframework.stereotype.Component;
 
 import java.util.concurrent.TimeUnit;
 
+// "!test | search-test" rather than a plain "!test" (Week 9): search
+// tests (SearchIntegrationTestBase) run with a real Kafka-protocol broker
+// (Testcontainers) and genuinely need the real publisher, unlike every
+// other test in this project - "search-test" is a second profile that
+// base class activates on top of "test", specifically so this can be
+// singled out without touching what every other test gets.
 @Component
-@Profile("!test")
+@Profile("!test | search-test")
 public class KafkaEventPublisher implements EventPublisher {
 
     /**
