@@ -20,7 +20,19 @@ class ListingAuthorizationTest extends IntegrationTestBase {
     @Autowired JdbcTemplate jdbc;
 
     @Test
-    void sellerStaff_queryingAnotherSellersInventory_returns403() throws Exception {
+    void sellerStaff_queryingAnotherSellersInventory_returns404() throws Exception {
+        // Was 403 before real RLS enforcement (see TenantAwareDataSource):
+        // ListingController.get() did findById() then a manual ownership
+        // check, and findById() - running as a superuser - could always
+        // see seller B's row, so the ownership check was reachable and
+        // fired 403. Now a connection scoped to seller A's tenant genuinely
+        // cannot see seller B's row at the database level; findById()
+        // returns empty and the controller's own "not found" branch fires
+        // first. 404 is the correct outcome here, not a regression to
+        // paper over - the same trade-off GitHub and Stripe make
+        // deliberately for private/cross-tenant resources, so that probing
+        // an ID never reveals whether it exists versus is merely
+        // forbidden.
         UUID sellerA = insertSeller("Nursery A");
         UUID sellerB = insertSeller("Nursery B");
         String subA = "sub-a-" + sellerA;
@@ -31,7 +43,7 @@ class ListingAuthorizationTest extends IntegrationTestBase {
 
         mockMvc.perform(get("/v1/listings/" + listingB)
                 .with(jwt().jwt(j -> j.subject(subA))))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isNotFound());
     }
 
     private UUID insertSeller(String name) {

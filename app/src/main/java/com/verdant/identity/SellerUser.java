@@ -22,4 +22,5 @@ public class SellerUser {
     protected SellerUser() { }
 
     public UUID getSellerId() { return sellerId; }
+    public String getRole() { return role; }
 }

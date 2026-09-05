@@ -43,6 +43,16 @@ public class ListingController {
         return listings.findBySellerId(currentSellerId(jwt));
     }
 
+    // The ownership checks in get()/uploadImage() below look unreachable
+    // for the cross-tenant case, and in practice they now are: with RLS
+    // actually enforced (TenantAwareDataSource), a request scoped to the
+    // caller's own tenant can no longer see another seller's row at all,
+    // so findById() already returns empty and 404s before either check
+    // runs. Left in place anyway as real defense in depth - the correct
+    // behavior if RLS is ever misconfigured, disabled per-table, or this
+    // code path is ever reached over a platform-admin (unscoped)
+    // connection where every row IS visible.
+
     @GetMapping("/{id}")
     public Listing get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
         UUID sellerId = currentSellerId(jwt);

@@ -4,6 +4,7 @@ import com.verdant.common.testing.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -12,12 +13,20 @@ class ListingIsolationTest extends IntegrationTestBase {
 
     @Autowired JdbcTemplate jdbc;
 
+    /** @Transactional is load-bearing here - see TenantIsolationTest's own comment for why (one connection must be held for the whole SET ROLE / SET tenant / query sequence, or TenantAwareDataSource re-applies its default on every independent JdbcTemplate call). */
     @Test
+    @Transactional
     void listingImages_areIsolatedThroughParentListing() {
         SellerListing a = sellerWithListingAndImage("A");
         SellerListing b = sellerWithListingAndImage("B");
 
         jdbc.execute("SET ROLE verdant_app");
+        // See TenantIsolationTest's own comment - TenantAwareDataSource
+        // (Week 8) defaults every connection to app.is_platform_admin =
+        // 'true', which must be cleared before testing narrow tenant
+        // scoping specifically, or the policy's admin-bypass branch
+        // satisfies every row regardless of current_tenant below.
+        jdbc.execute("RESET app.is_platform_admin");
         jdbc.execute("SET app.current_tenant = '" + a.sellerId() + "'");
 
         Integer visibleCount = jdbc.queryForObject("SELECT count(*) FROM listing_images", Integer.class);
