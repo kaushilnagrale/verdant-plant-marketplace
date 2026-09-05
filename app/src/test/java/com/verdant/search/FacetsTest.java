@@ -6,12 +6,15 @@ import com.verdant.search.projection.ReindexWorker;
 import com.verdant.search.projection.SearchReindexQueueRepository;
 import com.verdant.search.query.FacetCounts;
 import com.verdant.search.query.ListingSearchService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch.core.BulkRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,10 +37,25 @@ class FacetsTest extends SearchIntegrationTestBase {
     @Autowired private ReindexWorker reindexWorker;
     @Autowired private ListingSearchService searchService;
 
+    private final List<UUID> indexedListingIds = new ArrayList<>();
+
     @BeforeEach
     void seedZones() {
         AllocationFixtures.seedLocalPincodeZone(jdbc);
         AllocationFixtures.seedMetroPincodeZone(jdbc);
+    }
+
+    /** Same real accumulation bug RankingTest's own @AfterEach documents - a failed OR passed run both leave real documents behind under OPENSEARCH.withReuse(true), and enough of them (dozens, from iterating on this exact file earlier today) eventually pollute a supposedly-unique-token query too. Deleting exactly what each run indexed keeps the index from ever accumulating past what one run needs. */
+    @AfterEach
+    void deleteIndexedDocuments() throws Exception {
+        if (indexedListingIds.isEmpty()) {
+            return;
+        }
+        BulkRequest.Builder request = new BulkRequest.Builder();
+        for (UUID id : indexedListingIds) {
+            request.operations(op -> op.delete(del -> del.index("listings").id(id.toString())));
+        }
+        opensearch.bulk(request.build());
     }
 
     /**
@@ -76,6 +94,7 @@ class FacetsTest extends SearchIntegrationTestBase {
             "Facet test listing " + UUID.randomUUID(), priceAmount, stock);
         reindexQueue.enqueue(listingId, "TEST_SETUP");
         reindexWorker.drainBatch(List.of(listingId));
+        indexedListingIds.add(listingId);
         return listingId;
     }
 

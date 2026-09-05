@@ -37,6 +37,13 @@ class CartPricingTamperingTest extends IntegrationTestBase {
             INSERT INTO listings (seller_id, raw_title, price_amount)
             VALUES (?, 'Rare Monstera', %s) RETURNING id
             """.formatted(REAL_UNIT_PRICE), UUID.class, sellerId);
+        // CartPricingService now also revalidates real stock (the
+        // consistency boundary, Week 9) - this fixture predates that
+        // check and never seeded a stock row, which correctly reads as 0
+        // available with none at all (same COALESCE-to-zero convention
+        // ProjectionQueryRepository already uses). Plenty of stock here:
+        // this test is about price tampering, not stock.
+        jdbc.update("INSERT INTO inventory (listing_id, quantity, buffer) VALUES (?, 10, 0)", listingId);
 
         // A tampered client tries to smuggle a fake price into the request.
         // CartLine has no "price" field, so Jackson has nowhere to bind it -

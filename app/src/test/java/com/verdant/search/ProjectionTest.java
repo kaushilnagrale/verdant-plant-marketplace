@@ -7,10 +7,13 @@ import com.verdant.identity.service.SellerOnboardingService;
 import com.verdant.search.projection.ListingDocument;
 import com.verdant.search.projection.ReindexWorker;
 import com.verdant.search.projection.SearchReindexQueueRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.opensearch.client.json.jackson.JacksonJsonpMapper;
 import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.GetResponse;
 import org.opensearch.client.transport.OpenSearchTransport;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -63,9 +67,11 @@ class ProjectionTest extends SearchIntegrationTestBase {
     @Autowired private ReindexWorker reindexWorker;
     @Autowired private com.verdant.search.projection.ProjectionQueryRepository projectionQueryRepository;
     @Autowired private com.verdant.search.projection.SearchProjectionStateRepository searchProjectionStateRepository;
+    @Autowired private MeterRegistry meterRegistry;
 
     private UUID sellerId;
     private String ownerSubject;
+    private final List<UUID> createdListingIds = new ArrayList<>();
 
     @BeforeEach
     void seed() {
@@ -73,6 +79,28 @@ class ProjectionTest extends SearchIntegrationTestBase {
         sellerId = AllocationFixtures.seedApprovedSeller(jdbc, "Projection Test Nursery " + UUID.randomUUID());
         ownerSubject = "sub-owner-" + UUID.randomUUID();
         jdbc.update("INSERT INTO seller_users (seller_id, subject_id, role) VALUES (?, ?, 'OWNER')", sellerId, ownerSubject);
+    }
+
+    /**
+     * None of this class's own assertions go through _search (real-time
+     * GET by id, or direct queue-row counts instead - see this class's
+     * own header comment), so unlike RankingTest/FacetsTest this class's
+     * accumulation was never actually breaking anything here. Still
+     * cleaned up so this class stops contributing to the shared index's
+     * permanent growth under OPENSEARCH.withReuse(true) - one less real
+     * source inflating the corpus those other tests' own result windows
+     * have to stay under.
+     */
+    @AfterEach
+    void deleteIndexedDocuments() throws Exception {
+        if (createdListingIds.isEmpty()) {
+            return;
+        }
+        BulkRequest.Builder request = new BulkRequest.Builder();
+        for (UUID id : createdListingIds) {
+            request.operations(op -> op.delete(del -> del.index("listings").id(id.toString())));
+        }
+        opensearch.bulk(request.build());
     }
 
     private UUID createListing(String title, String price) throws Exception {
@@ -84,7 +112,9 @@ class ProjectionTest extends SearchIntegrationTestBase {
                 .contentType(APPLICATION_JSON).content(body))
             .andExpect(status().isCreated())
             .andReturn().getResponse().getContentAsString();
-        return UUID.fromString(response.replaceAll(".*\"id\":\"([0-9a-fA-F-]+)\".*", "$1"));
+        UUID listingId = UUID.fromString(response.replaceAll(".*\"id\":\"([0-9a-fA-F-]+)\".*", "$1"));
+        createdListingIds.add(listingId);
+        return listingId;
     }
 
     /**
@@ -278,7 +308,7 @@ class ProjectionTest extends SearchIntegrationTestBase {
         OpenSearchClient brokenClient = new OpenSearchClient(brokenTransport);
 
         ReindexWorker workerAgainstDownCluster = new ReindexWorker(
-            reindexQueue, projectionQueryRepository, searchProjectionStateRepository, brokenClient);
+            reindexQueue, projectionQueryRepository, searchProjectionStateRepository, brokenClient, meterRegistry);
 
         reindexQueue.enqueue(id, "TEST_SETUP");
         workerAgainstDownCluster.drainBatch(List.of(id));

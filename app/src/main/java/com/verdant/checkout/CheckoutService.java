@@ -3,6 +3,8 @@ package com.verdant.checkout;
 import com.verdant.cart.CartLine;
 import com.verdant.cart.CartPricingService;
 import com.verdant.cart.CartQuote;
+import com.verdant.cart.ListingNoLongerAvailableException;
+import com.verdant.cart.SellerUnavailableException;
 import com.verdant.inventory.InsufficientStockException;
 import com.verdant.inventory.InventoryService;
 import com.verdant.inventory.ReservationLine;
@@ -89,7 +91,18 @@ public class CheckoutService {
             .map(a -> new CartLine(a.listingId(), a.quantity()))
             .toList();
 
-        CartQuote quote = pricing.priceCart(allocatedLines);
+        // Second, independent revalidation against Postgres (Week 9) -
+        // allocation just chose these lines from a fresh query of its own,
+        // but minutes can genuinely pass between a buyer starting checkout
+        // and this line running (address entry, a slow payment step retried).
+        // CartPricingService re-checks active/stock/seller-status fresh,
+        // every time, same as it does for the standalone pre-checkout quote.
+        CartQuote quote;
+        try {
+            quote = pricing.priceCart(allocatedLines);
+        } catch (InsufficientStockException | ListingNoLongerAvailableException | SellerUnavailableException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+        }
         UUID orderId = UUID.randomUUID();
 
         reserveStock(orderId, allocatedLines);

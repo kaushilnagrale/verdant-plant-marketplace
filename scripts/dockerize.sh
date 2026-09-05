@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -e
 ./gradlew :app:bootJar
+# Staged as a real file at a fixed path, not COPYed straight from
+# app/build/libs/*.jar in the Dockerfile: this project's own app/build is
+# a symlink to a non-iCloud-synced location (see the build-directory
+# corruption note elsewhere in this project's history) - Docker's
+# BuildKit deliberately refuses to follow a symlink pointing outside the
+# build context for a COPY, so the jar's real bytes need to land inside
+# the context directly. Gitignored; regenerated every run.
+cp app/build/libs/*.jar infra/docker/app.jar
 docker build -t verdant:local -f infra/docker/Dockerfile .
 docker run --rm -p 8080:8080 \
   -e SPRING_PROFILES_ACTIVE=prod \
@@ -8,6 +16,7 @@ docker run --rm -p 8080:8080 \
   -e DB_USER=verdant -e DB_PASSWORD=verdant \
   -e REDIS_HOST=host.docker.internal -e REDIS_PORT=6379 \
   -e KAFKA_BOOTSTRAP_SERVERS=host.docker.internal:9092 \
+  -e OPENSEARCH_URI=http://host.docker.internal:9200 \
   -e OIDC_ISSUER_URI=http://host.docker.internal:8081/realms/verdant \
   -e S3_BUCKET=verdant-images -e AWS_REGION=ap-south-1 \
   -e EMBEDDING_MODEL_URI=https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/main/onnx/model.onnx \

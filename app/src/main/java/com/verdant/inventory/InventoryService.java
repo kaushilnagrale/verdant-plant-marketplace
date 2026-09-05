@@ -94,4 +94,20 @@ public class InventoryService {
             }
         }
     }
+
+    /**
+     * Real-time read, used by CartPricingService (Week 9) to revalidate
+     * against Postgres - never the search index, which may be stale -
+     * before a buyer's cart is priced or checked out. A scalar subquery
+     * rather than queryForObject() directly on inventory: a listing with
+     * no inventory row at all (a real, separate, pre-existing gap - see
+     * ProjectionQueryRepository's own doc comment) must read as 0
+     * available, not throw EmptyResultDataAccessException.
+     */
+    public int sellableQuantity(UUID listingId) {
+        Integer available = jdbc.queryForObject("""
+            SELECT COALESCE((SELECT quantity - buffer FROM inventory WHERE listing_id = ?), 0)
+            """, Integer.class, listingId);
+        return available == null ? 0 : available;
+    }
 }

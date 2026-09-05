@@ -3,6 +3,7 @@ package com.verdant.search.projection;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -52,6 +53,23 @@ public class SearchReindexQueueRepository {
              )
             RETURNING listing_id
             """, (rs, n) -> (UUID) rs.getObject("listing_id"), limit);
+    }
+
+    /** listing_id paired with queued_at (Day 52) - so a caller can measure real end-to-end indexing lag (queued -> actually indexed), not just which ids were claimed. A separate method from claimBatch() rather than changing its return type, since that would ripple into every test calling drainBatch(List<UUID>) directly across the whole search test suite for no behavior change. */
+    public record QueuedItem(UUID listingId, Instant queuedAt) { }
+
+    public List<QueuedItem> claimBatchWithQueuedAt(int limit) {
+        return jdbc.query("""
+            DELETE FROM search_reindex_queue
+             WHERE listing_id IN (
+                SELECT listing_id FROM search_reindex_queue
+                 ORDER BY queued_at
+                 LIMIT ?
+                 FOR UPDATE SKIP LOCKED
+             )
+            RETURNING listing_id, queued_at
+            """, (rs, n) -> new QueuedItem((UUID) rs.getObject("listing_id"), rs.getTimestamp("queued_at").toInstant()),
+            limit);
     }
 
     /** Puts a listing back on the queue after a failed index attempt, with the attempt count preserved rather than reset. */

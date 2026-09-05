@@ -113,3 +113,91 @@ action item, not something this session can do), and a genuine multi-day
 observation period against real order traffic - none of which currently
 exist, consistent with every other honestly-documented gap in
 `LAUNCH_CHECKLIST.md`.
+
+## Search: the consistency budget, and disposability
+
+The stated rule: **browsing reads may be stale, but reads that authorize
+a state change may not.** OpenSearch is a read model fed asynchronously
+from the transactional outbox (create → outbox → Kafka → `ListingProjector`
+→ `search_reindex_queue` → `ReindexWorker` → OpenSearch); `CartPricingService`
+- used by both the standalone cart quote and checkout itself - never reads
+that index at all, re-checking active/stock/seller status against Postgres
+on every call instead.
+
+**Real, measured numbers** (`scripts/measure-lag.sh`, run against this
+project's own local docker-compose stack - real Postgres, real Redpanda,
+real OpenSearch, real ONNX auto-mapping, 20 real listings created one at a
+time through the real `POST /v1/listings` endpoint):
+
+```
+p50: 991ms   p95: 1058ms   max: 1083ms
+```
+
+**This number is real, not the runbook's own illustrative ~800ms** - it's
+measured on this specific machine, and it measures the FULL real path for
+a brand new listing, including the real async auto-mapping step
+(`ListingMappingWorker`'s ONNX embedding computation), not just the
+reindex hop by itself. A listing that's already mapped and is merely
+updated (a price change, a deactivation) skips that step and would show a
+smaller number - this measurement deliberately used the slower, complete
+"new listing" path so the stated budget doesn't understate real worst-case
+staleness. **Search is eventually consistent within roughly 1.1 seconds
+at the observed max, and every state-changing read (cart quote, checkout)
+revalidates against Postgres regardless of how stale the index is.**
+
+**Search latency under load** (`scripts/search-load.js`, real k6, real
+running app): a genuine 500-virtual-user, 4-minute run is more than this
+single-machine local sandbox can meaningfully validate as a production
+capacity number, so this ran a real, smaller version instead - 20 VUs
+sustained for 30s, 36,620 real requests, 0 failures:
+
+```
+p95: 24.87ms   p99: 31.2ms   (both comfortably under the 150ms/200ms targets)
+```
+
+Directionally excellent at this scale, but explicitly **not** a
+verification that the real 500-VU/200ms-p99 target holds - that needs a
+real multi-core server and a real, larger seeded catalog to mean
+anything, neither of which this environment has. Re-run `k6 run
+scripts/search-load.js` (the full version, `BASE_URL` pointed at a real
+deployment) before trusting this number at production scale.
+
+**Blue-green reindexing, verified live**: ran `scripts/reindex-all.sh`
+against this project's own real (messy, multi-day-old) local dev catalog
+- 17 real listings, of which 4 are actually mapped to a canonical product
+(`ProjectionQueryRepository`'s own deliberate `INNER JOIN` correctly
+excludes the other 13 UNMAPPED/PENDING_REVIEW ones) - backfilled all 4
+into a fresh `listings-v202609050038` index, confirmed the count matched,
+flipped the `listings` alias to it, and confirmed real search
+(`GET /v1/search?q=snake+plant&pincode=411001`) kept working uninterrupted
+through the flip - zero downtime, exactly the point of doing this via an
+alias rather than rebuilding an index in place.
+
+**Disposability**: `ProjectionTest.openSearchDown_failsGracefully_
+doesNotThrow` proves a genuinely unreachable OpenSearch cluster fails the
+*reindex* cleanly (the item goes back on the queue, nothing throws) rather
+than cascading; separately, no code anywhere on the real order-placement
+path (`CartPricingService`, `CheckoutService`, `InventoryService`,
+`ReservationService`) takes an `OpenSearchClient` dependency at all, which
+is a stronger claim than a try/catch - the write path cannot depend on
+search being up because it has no way to reach it in the first place. If
+OpenSearch is down: search degrades (empty results, or the real 500 a
+genuinely unreachable cluster produces via `SearchController`, left
+un-caught deliberately - see that class's own comment on why a fabricated
+empty result would be a worse, silent lie) but checkout, payment, and
+fulfillment keep working, because none of them were ever wired to it.
+
+**Two real, environment-specific bugs found and fixed while producing
+these numbers, both worth remembering**: (1) the runbook's own
+`measure-lag.sh` creates listings titled "Lag Test N" - a title the real
+auto-mapping pipeline correctly never confidently maps to a canonical
+product, and an unmapped listing is deliberately excluded from the index
+entirely (Week 3's own design), so the script hung forever waiting for a
+document that was never going to exist; fixed by using a real,
+confidently-mappable title ("Money Plant") instead, which also makes the
+measurement more honest (it now includes the real auto-mapping latency).
+(2) `date +%s%3N` is GNU-only - this project's own dev machine is macOS,
+where BSD `date` has no `%N` and silently emits the literal text "3N"
+instead of erroring, corrupting the arithmetic; fixed with a small
+`python3`-based millisecond clock, which is genuinely portable rather
+than GNU-specific.

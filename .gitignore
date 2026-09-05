@@ -1,5 +1,12 @@
 build/
 .gradle/
+infra/docker/app.jar
+# A trailing-slash pattern (build/ above) only matches real directories,
+# not a symlink named "build" - this project's own module build/
+# directories are symlinked to a non-iCloud-synced location (see
+# scripts/dockerize.sh's own comment on why), and git would otherwise
+# see that symlink as a genuine untracked file worth adding.
+**/build
 *.log
 .env
 .idea/

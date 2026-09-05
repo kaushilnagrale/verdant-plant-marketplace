@@ -7,12 +7,15 @@ import com.verdant.search.projection.SearchReindexQueueRepository;
 import com.verdant.search.query.ListingSearchService;
 import com.verdant.search.query.SearchHit;
 import com.verdant.search.query.SearchResults;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.opensearch.client.opensearch.OpenSearchClient;
+import org.opensearch.client.opensearch.core.BulkRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -64,6 +67,7 @@ class RankingTest extends SearchIntegrationTestBase {
 
     private UUID moneyPlantId;
     private UUID bostonFernId;
+    private final List<UUID> indexedListingIds = new ArrayList<>();
 
     @BeforeEach
     void seedZonesAndProducts() {
@@ -72,6 +76,36 @@ class RankingTest extends SearchIntegrationTestBase {
         AllocationFixtures.seedRemotePincodeZone(jdbc);
         moneyPlantId = canonicalProductId("Money Plant");
         bostonFernId = canonicalProductId("Boston Fern");
+    }
+
+    /**
+     * REAL BUG, found by these tests failing for real after enough
+     * accumulated runs today: OPENSEARCH.withReuse(true) means the
+     * "listings" index is never cleaned between test runs, only between
+     * JVM-fresh containers - every one of THIS class's own past runs left
+     * its documents behind permanently. That's normally masked by
+     * anyMatch/relative-rank assertions (robust to extra noise, see this
+     * class's own header comment) - until enough real accumulation
+     * (dozens of runs while iterating on this same file today) pushed the
+     * total past ListingSearchService's own real, correct 50-result page
+     * size, at which point a fresh test's own brand new documents could
+     * be crowded out of the window entirely rather than merely
+     * outranked. Deleting exactly what THIS test run indexed, every run,
+     * keeps the index from ever accumulating past what any one test run
+     * itself needs - the same reasoning as AllocationFixtureCleanupExtension,
+     * just for OpenSearch documents instead of canonical_products rows,
+     * which nothing previously cleaned up.
+     */
+    @AfterEach
+    void deleteIndexedDocuments() throws Exception {
+        if (indexedListingIds.isEmpty()) {
+            return;
+        }
+        BulkRequest.Builder request = new BulkRequest.Builder();
+        for (UUID id : indexedListingIds) {
+            request.operations(op -> op.delete(del -> del.index("listings").id(id.toString())));
+        }
+        opensearch.bulk(request.build());
     }
 
     private UUID canonicalProductId(String displayName) {
@@ -88,6 +122,7 @@ class RankingTest extends SearchIntegrationTestBase {
             "Ranking test listing " + UUID.randomUUID(), priceAmount, stock);
         reindexQueue.enqueue(listingId, "TEST_SETUP");
         reindexWorker.drainBatch(List.of(listingId));
+        indexedListingIds.add(listingId);
         return listingId;
     }
 

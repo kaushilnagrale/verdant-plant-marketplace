@@ -77,7 +77,8 @@ public abstract class SearchIntegrationTestBase extends IntegrationTestBase {
         r.add("verdant.search.projector.autostart", () -> "true");
     }
 
-    private static String opensearchBaseUri() {
+    /** protected, not private: Day 52's backfill test needs to PUT/DELETE its own extra, throwaway index directly, the same way this class creates "listings-v1" below. */
+    protected static String opensearchBaseUri() {
         return "http://" + OPENSEARCH.getHost() + ":" + OPENSEARCH.getMappedPort(9200);
     }
 

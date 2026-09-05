@@ -1,5 +1,7 @@
 package com.verdant.search.projection;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
@@ -9,6 +11,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -45,22 +49,41 @@ public class ReindexWorker {
     private final ProjectionQueryRepository projectionQuery;
     private final SearchProjectionStateRepository projectionState;
     private final OpenSearchClient opensearch;
+    private final Timer indexLagTimer;
 
     public ReindexWorker(SearchReindexQueueRepository reindexQueue, ProjectionQueryRepository projectionQuery,
-                          SearchProjectionStateRepository projectionState, OpenSearchClient opensearch) {
+                          SearchProjectionStateRepository projectionState, OpenSearchClient opensearch,
+                          MeterRegistry meterRegistry) {
         this.reindexQueue = reindexQueue;
         this.projectionQuery = projectionQuery;
         this.projectionState = projectionState;
         this.opensearch = opensearch;
+        // Real end-to-end lag (Day 52): queued_at (the moment the write
+        // model changed and asked to be reindexed) to right now, measured
+        // once the bulk index call below has actually completed - not at
+        // claim time, which would understate it by exactly the real
+        // OpenSearch round trip this metric exists to capture. This is
+        // "indexed" in the same real-time-GET sense ProjectionTest's own
+        // awaitIndexed() already uses, not "visible to _search" (which
+        // adds OpenSearch's own separate refresh-interval delay on top -
+        // a different, additional number, not this one).
+        this.indexLagTimer = Timer.builder("search.index.lag")
+            .description("Time from a listing change being queued for reindex to actually landing in OpenSearch")
+            .publishPercentiles(0.5, 0.95, 0.99)
+            .register(meterRegistry);
     }
 
     @Scheduled(fixedDelayString = "${verdant.search.reindex-interval-ms:500}")
     public void drain() {
-        List<UUID> batch = reindexQueue.claimBatch(200);
-        if (batch.isEmpty()) {
+        List<SearchReindexQueueRepository.QueuedItem> claimed = reindexQueue.claimBatchWithQueuedAt(200);
+        if (claimed.isEmpty()) {
             return;
         }
+        List<UUID> batch = claimed.stream().map(SearchReindexQueueRepository.QueuedItem::listingId).toList();
         drainBatch(batch);
+
+        Instant now = Instant.now();
+        claimed.forEach(item -> indexLagTimer.record(Duration.between(item.queuedAt(), now)));
     }
 
     /** Exposed for tests to call directly and deterministically - same reasoning as every other @Scheduled job in this project (ReconciliationJob.reconcile(), PayoutCycleBuildJob.buildCyclesFor(), etc.). */
@@ -97,18 +120,55 @@ public class ReindexWorker {
     }
 
     private BulkResponse bulkWrite(List<ListingDocument> docs, List<UUID> deletions) throws Exception {
+        return bulkWriteInto(INDEX, docs, deletions);
+    }
+
+    private BulkResponse bulkWriteInto(String targetIndex, List<ListingDocument> docs, List<UUID> deletions) throws Exception {
         BulkRequest.Builder request = new BulkRequest.Builder();
 
         for (ListingDocument doc : docs) {
             request.operations(op -> op.index(idx -> idx
-                .index(INDEX)
+                .index(targetIndex)
                 .id(doc.listingId().toString())
                 .document(doc)));
         }
         for (UUID id : deletions) {
-            request.operations(op -> op.delete(del -> del.index(INDEX).id(id.toString())));
+            request.operations(op -> op.delete(del -> del.index(targetIndex).id(id.toString())));
         }
 
         return opensearch.bulk(request.build());
+    }
+
+    /**
+     * Backfill into an explicitly-named index (Day 52), never the
+     * "listings" alias this class otherwise always writes through - the
+     * whole point of blue-green reindexing is that a brand new index can
+     * be built up fully, verified, and only THEN swapped in via an alias
+     * flip (a separate, ops-level curl call - see scripts/reindex-all.sh),
+     * so a mapping change never causes downtime on the live "listings"
+     * alias while it's being rebuilt. No delete-of-missing branch here
+     * unlike drainBatch() above: a fresh target index starts empty, so
+     * there is nothing stale in it yet to remove.
+     */
+    public int reindexInto(String targetIndex, List<UUID> listingIds) {
+        List<ListingDocument> docs = projectionQuery.buildDocuments(listingIds);
+        if (docs.isEmpty()) {
+            return 0;
+        }
+        try {
+            BulkResponse response = bulkWriteInto(targetIndex, docs, List.of());
+            if (response.errors()) {
+                for (BulkResponseItem item : response.items()) {
+                    if (item.error() != null) {
+                        log.error("Backfill bulk index failed for listing {} into {}: {}",
+                            item.id(), targetIndex, item.error().reason());
+                    }
+                }
+            }
+            return docs.size();
+        } catch (Exception e) {
+            log.error("Backfill bulk index failed for a batch of {} listing(s) into {}", listingIds.size(), targetIndex, e);
+            throw new IllegalStateException("Backfill into " + targetIndex + " failed", e);
+        }
     }
 }
