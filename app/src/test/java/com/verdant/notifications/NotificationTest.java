@@ -11,6 +11,7 @@ import com.verdant.notifications.service.WhatsAppTemplateRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Instant;
 import java.time.LocalTime;
@@ -30,6 +31,7 @@ class NotificationTest extends IntegrationTestBase {
     @Autowired private WhatsAppMessageRepository messages;
     @Autowired private WhatsAppTemplateRepository templates;
     @Autowired private StubWhatsAppGateway whatsappStub;
+    @Autowired private JdbcTemplate jdbc;
 
     private String phone;
     private String recipientPhone;
@@ -39,6 +41,28 @@ class NotificationTest extends IntegrationTestBase {
         phone = "+91900000" + (1000 + new java.util.Random().nextInt(9000));
         recipientPhone = "+91800000" + (1000 + new java.util.Random().nextInt(9000));
         whatsappStub.reset();
+    }
+
+    /**
+     * queue() always runs its quiet-hours check against the REAL clock
+     * (respectQuietHours's own doc comment - queue() itself still calls
+     * Instant.now() for real use, deliberately, so the deferral is
+     * correct in production). "order_shipped" is non-urgent, so a queue()
+     * call made for real during 22:00-08:00 IST - which this machine's
+     * wall clock genuinely crosses into depending on when the suite
+     * happens to run - lands scheduled_for hours in the future, and
+     * sendQueued()'s own due-message query never picks it up: found for
+     * real (not hypothetically) when this suite ran at 02:07 IST and both
+     * sendQueued()-driven assertions below failed with QUEUED instead of
+     * their expected terminal status. Same "backdate the stored
+     * timestamp" trick this project already uses elsewhere
+     * (OrderExpiryServiceTest et al.) - here forward-dated back to "now",
+     * since queue() has already persisted the row by this point, unlike
+     * respectQuietHours's own direct-Instant test seam above which runs
+     * before anything is persisted.
+     */
+    private void forceDueNow(String idempotencyKey) {
+        jdbc.update("UPDATE whatsapp_messages SET scheduled_for = now() WHERE idempotency_key = ?", idempotencyKey);
     }
 
     private Map<String, Object> vars() {
@@ -114,6 +138,7 @@ class NotificationTest extends IntegrationTestBase {
         templates.markApproved("order_shipped", false);
         String idempotencyKey = key();
         notifications.queue(idempotencyKey, RecipientType.BUYER, phone, "order_shipped", vars());
+        forceDueNow(idempotencyKey);
 
         sender.sendQueued();
 
@@ -127,6 +152,14 @@ class NotificationTest extends IntegrationTestBase {
         whatsappStub.rateLimitNext();
         String idempotencyKey = key();
         notifications.queue(idempotencyKey, RecipientType.BUYER, phone, "order_shipped", vars());
+        // Without this, a real run during 22:00-08:00 IST would already
+        // have quiet-hours-deferred scheduled_for into the future before
+        // sendQueued() is even called - sendQueued() would then skip the
+        // row entirely (still not due) rather than actually reach
+        // rateLimitNext()'s own reschedule branch, and both assertions
+        // below would pass anyway for the wrong reason. See forceDueNow's
+        // own comment.
+        forceDueNow(idempotencyKey);
 
         sender.sendQueued();
 
@@ -150,6 +183,7 @@ class NotificationTest extends IntegrationTestBase {
         templates.markApproved("order_shipped", true);
         String idempotencyKey = key();
         notifications.queue(idempotencyKey, RecipientType.BUYER, phone, "order_shipped", vars());
+        forceDueNow(idempotencyKey);
 
         sender.sendQueued();
 
