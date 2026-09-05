@@ -60,4 +60,15 @@ verdant:
   search:
     projector:
       autostart: false
+  # NotificationSender.sendQueued() (Week 10) is a fixedDelay job like
+  # DispatchOrchestrationJob above, same real reason to suppress it here:
+  # a real background tick could race a test's own explicit
+  # sender.sendQueued() call, or process an EARLIER test's leftover
+  # queued message using whatever whatsapp_templates.approved currently
+  # holds (a real, shared, mutable row) - found for real, not
+  # hypothetically, by NotificationTest's own sendCount() assertions
+  # flaking. Still directly callable via sendQueued() when a test wants
+  # to invoke it explicitly (every NotificationTest scenario does).
+  notifications:
+    interval-ms: 999999999
 

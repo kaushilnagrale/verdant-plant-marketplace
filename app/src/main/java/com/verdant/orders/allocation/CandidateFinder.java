@@ -39,7 +39,7 @@ public class CandidateFinder {
                    COALESCE(inv.quantity - inv.buffer, 0) AS available_qty,
                    te.transit_days
               FROM listings l
-              JOIN sellers s ON s.id = l.seller_id AND s.status = 'APPROVED'
+              JOIN sellers s ON s.id = l.seller_id AND s.status = 'APPROVED' AND s.on_vacation = false
               JOIN canonical_products cp ON cp.id = l.canonical_product_id
               LEFT JOIN inventory inv ON inv.listing_id = l.id
               JOIN pincode_zones origin_pz ON origin_pz.pincode = s.origin_pincode

@@ -47,5 +47,26 @@ public class SellerQualityScoreRepository {
             tier.name(), previousScore, previousTier == null ? null : previousTier.name());
     }
 
+    /** The seller-facing quality view (Day 56's own "Payouts and quality" screen) - the full row, components included, not just the score/tier CurrentScore carries for the scorer's own internal damping use. */
+    public Optional<SellerQualityView> findFullBySellerId(UUID sellerId) {
+        try {
+            Map<String, Object> row = jdbc.queryForMap("""
+                SELECT score, tier, components, order_count, is_provisional, computed_at
+                  FROM seller_quality_scores WHERE seller_id = ?
+                """, sellerId);
+            return Optional.of(new SellerQualityView(
+                ((Number) row.get("score")).doubleValue(),
+                Tier.valueOf((String) row.get("tier")),
+                new JSONObject(row.get("components").toString()).toMap(),
+                ((Number) row.get("order_count")).intValue(),
+                (Boolean) row.get("is_provisional")));
+        } catch (EmptyResultDataAccessException e) {
+            return Optional.empty();
+        }
+    }
+
     public record CurrentScore(double score, Tier tier) { }
+
+    public record SellerQualityView(double score, Tier tier, Map<String, Object> components,
+                                     int orderCount, boolean isProvisional) { }
 }
