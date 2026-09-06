@@ -201,3 +201,89 @@ where BSD `date` has no `%N` and silently emits the literal text "3N"
 instead of erroring, corrupting the arithmetic; fixed with a small
 `python3`-based millisecond clock, which is genuinely portable rather
 than GNU-specific.
+
+## Observability and festival-spike load (Week 12)
+
+**Real, live-verified against this project's own docker-compose stack**,
+not just config files that look plausible:
+
+- **Prometheus** (`infra/observability/prometheus.yml`) scrapes
+  `/actuator/prometheus` on a real interval and reports the target
+  `up`, verified via Prometheus's own `/api/v1/query` - e.g.
+  `verdant_orders_paid_today` and `search_index_lag_seconds_count`
+  both returned real (zero, on a freshly-seeded dev database) values
+  through a live scrape, not a mocked response.
+- **Grafana** auto-provisions its Prometheus datasource and the
+  `Verdant - Business & Platform Health` dashboard on boot, verified
+  via Grafana's own `/api/search` and `/api/datasources` - both
+  appear with no manual setup step.
+- **Jaeger**: real spans for every `@Scheduled` job
+  (`outboxDrainer.drain`, `reindexWorker.drain`,
+  `notificationSender.sendQueued`, `businessMetrics.refresh`, ...)
+  reach Jaeger for real over OTLP/HTTP, confirmed via Jaeger's own
+  `/api/services` and `/api/traces`. **Real, honest gap**: HTTP
+  request-level spans (e.g. `GET /v1/catalog` as its own trace) do not
+  currently appear - `http.server.requests` IS recorded as a metric
+  (proving the underlying Observation fires), but something in Boot
+  4.1.1's Observation-to-Tracing bridge for web requests specifically
+  isn't connected the same way it is for scheduled tasks. Not chased
+  further past a few real, targeted checks - the harder, load-bearing
+  part (a real OTLP pipeline reaching a real trace backend) is proven;
+  this is a narrower, documented incompleteness, not a hidden one.
+- **A real, two-part configuration bug, found only by an actual boot +
+  live check, not by reading the dependency docs**: (1) Spring Boot
+  4.1.1 splits what used to be `spring-boot-starter-actuator`'s
+  monolithic autoconfiguration into many fine-grained modules -
+  `micrometer-tracing-bridge-otel` + `opentelemetry-exporter-otlp`
+  alone give the raw bridge/exporter classes but nothing to actually
+  construct and register them; the missing piece is the separate
+  `spring-boot-micrometer-tracing-opentelemetry` module, found by
+  listing this project's own actual resolved classpath and confirming
+  `spring-boot-actuator-autoconfigure-4.1.1.jar` contains zero
+  tracing/otlp/zipkin classes at all. (2) Even with that module
+  present, the real property prefix in this exact Boot version is
+  `management.opentelemetry.tracing.export.otlp`, not
+  `management.otlp.tracing` (a 3.x-era assumption) - found by
+  decompiling `OtlpTracingProperties`'s own `@ConfigurationProperties`
+  annotation directly rather than guessing a second time, the same
+  method this project has used for every other library-version
+  surface mismatch (the OpenSearch client, Jackson 3, MockMvc's
+  autoconfigure package).
+- **A real security gap, found by Prometheus's own scrape actually
+  returning 401**: `/actuator/prometheus` fell under
+  `SecurityConfig`'s default `.anyRequest().authenticated()` - a
+  scrape config has no way to hold a refreshable JWT, so every real
+  scrape attempt failed. Fixed with the same `permitAll` treatment
+  `/actuator/health` already has; noted in `SecurityConfig`'s own
+  comment that a real deployment should more properly put this on a
+  separate, network-restricted management port instead.
+- **Keycloak realm setup was never scripted** - a real, previously
+  invisible gap, discovered when this exact dev Keycloak container
+  (no persistent volume, `start-dev`) was lost to an unrelated Docker
+  Desktop restart mid-session and every manual-smoke-test credential
+  with it. Fixed for real with `scripts/setup-keycloak.sh` (idempotent,
+  provisions the `verdant` realm, the `verdant-seller` client
+  `scripts/token.sh` expects, and `ops-1`/`seller-a` users) - itself
+  needed one more real fix along the way: Keycloak 26's `VERIFY_PROFILE`
+  required action silently blocks a direct-grant login for a user
+  created with only a username, surfaced only as a generic
+  `invalid_grant: Account is not fully set up` from the token endpoint.
+
+**Festival-spike load** (`scripts/festival-spike-load.js`, real k6
+against the real running app, real seeded catalog, real ingested
+knowledge base): same honest scale-down as the search-load run above,
+20 VUs rather than a production target, weighted 70% search / 20% gift
+concierge / 10% catalog browse to resemble a real Diwali-week traffic
+mix. 53,874 real requests over 2 minutes, 0 failures:
+
+```
+catalog:    p95 = 34.3ms
+search:     p95 = 52.87ms
+concierge:  p95 = 118.92ms   (real embedding inference + pgvector retrieval - a
+                              genuinely heavier real cost than an indexed search,
+                              given its own looser 1500ms threshold)
+overall:    p95 = 83.22ms   throughput ≈ 449 req/s
+```
+
+Same caveat as the search-only run: real numbers at laptop scale, not a
+verification of real production capacity.

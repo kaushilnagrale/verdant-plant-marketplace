@@ -12,6 +12,15 @@ spring:
         tokenizer:
           uri: https://huggingface.co/sentence-transformers/all-mpnet-base-v2/resolve/main/tokenizer.json
 
+# OTLP export is non-blocking/best-effort by design (a failed send logs
+# a warning, never fails the traced request) - sampling is still turned
+# off here anyway, purely so 285+ tests don't all spend even a small
+# amount of background effort trying to reach a Jaeger container that
+# doesn't exist in this profile.
+management:
+  tracing:
+    sampling.probability: 0.0
+
 aws:
   s3:
     endpoint: http://localhost:4566
@@ -70,5 +79,13 @@ verdant:
   # flaking. Still directly callable via sendQueued() when a test wants
   # to invoke it explicitly (every NotificationTest scenario does).
   notifications:
+    interval-ms: 999999999
+  # BusinessMetrics.refresh() (Week 12) is the same fixedDelay shape as
+  # every job above - a real background tick mid-test would poll
+  # whatever count another test's own fixtures happen to have left
+  # behind at that exact moment and update a shared MeterRegistry with
+  # it, racing BusinessMetricsTest's own direct refresh() call.
+  # Suppressed here, still directly callable.
+  metrics:
     interval-ms: 999999999
 

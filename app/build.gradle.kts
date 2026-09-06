@@ -6,6 +6,28 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    // Actuator's /actuator/metrics is Spring's own JSON shape - a real
+    // Prometheus server (Week 12 observability) scrapes text-format
+    // /actuator/prometheus, which needs this concrete registry
+    // implementation on the classpath; the exposure list alone (below)
+    // does nothing without it.
+    implementation("io.micrometer:micrometer-registry-prometheus")
+    // Distributed tracing (Week 12). REAL BUG, found by tracing never
+    // reaching Jaeger despite these two alone: Spring Boot 4.x split
+    // spring-boot-starter-actuator's old monolithic autoconfiguration
+    // jar into many fine-grained modules (spring-boot-micrometer-metrics,
+    // spring-boot-health, ... - confirmed by listing what's actually on
+    // this project's own classpath, since spring-boot-actuator-
+    // autoconfigure-4.1.1.jar itself now contains zero tracing/otlp/
+    // zipkin classes at all). micrometer-tracing-bridge-otel and
+    // opentelemetry-exporter-otlp supply the raw bridge/exporter
+    // classes, but nothing actually CONSTRUCTS and registers their
+    // beans from management.tracing/management.otlp.tracing without
+    // this additional, separate autoconfiguration module - confirmed by
+    // grepping spring-boot-dependencies' own real BOM for "tracing".
+    implementation("org.springframework.boot:spring-boot-micrometer-tracing-opentelemetry")
+    implementation("io.micrometer:micrometer-tracing-bridge-otel")
+    implementation("io.opentelemetry:opentelemetry-exporter-otlp")
     implementation("org.springframework.boot:spring-boot-starter-aspectj")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-resource-server")
     implementation("org.springframework.boot:spring-boot-starter-security")

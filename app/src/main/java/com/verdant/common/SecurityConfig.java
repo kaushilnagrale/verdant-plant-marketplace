@@ -33,7 +33,18 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http, SellerUserRepository sellerUsers) throws Exception {
         http
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
+                // Week 12 observability: REAL bug, found by Prometheus's
+                // own scrape actually failing, not assumed - a scrape
+                // config has no way to hold a JWT (it expires; there's
+                // no refresh flow for a static scrape target), so
+                // /actuator/prometheus needs the same permitAll
+                // treatment /actuator/health already has, or Prometheus
+                // gets 401 on every single scrape attempt. A real
+                // production deployment would more properly put this on
+                // a separate, network-restricted management port
+                // (management.server.port) rather than share the public
+                // API port at all - not done here, real, separate scope.
+                .requestMatchers("/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
                 .requestMatchers("/v1/cart/**", "/v1/checkout/**", "/v1/webhooks/**", "/v1/catalog/**", "/v1/search/**", "/v1/assistant/**").permitAll()
                 // Not obvious, found by real end-to-end testing (Week 7) rather
                 // than any prior test - every prior error-path test called the

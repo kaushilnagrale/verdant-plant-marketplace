@@ -63,5 +63,40 @@ services:
       interval: 10s
       retries: 12
 
+  # Week 12 observability. The app runs on the HOST during local dev
+  # (dockerize.sh/./gradlew bootRun), same as every other service here
+  # reaching it - so Prometheus's own scrape config (../observability/
+  # prometheus.yml) targets host.docker.internal:8080, not a
+  # container-network address.
+  prometheus:
+    build:
+      context: ../observability
+      dockerfile: prometheus.Dockerfile
+    container_name: verdant-prometheus
+    ports: ["9090:9090"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  grafana:
+    build:
+      context: ../observability
+      dockerfile: grafana.Dockerfile
+    container_name: verdant-grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD: verdant-dev-only
+    ports: ["3000:3000"]
+    depends_on: ["prometheus"]
+
+  # Modern all-in-one Jaeger has a native OTLP receiver (4317 gRPC, 4318
+  # HTTP) - no separate OTel Collector needed for a single-instance dev
+  # setup like this one.
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: verdant-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports: ["16686:16686", "4317:4317", "4318:4318"]
+
 volumes:
   pgdata:

@@ -125,3 +125,24 @@ This is the same honesty standard as the Hindi review gap, the cultural
 content authorship gap, and the k6 scale-down above: the real,
 verifiable slice is built and tested; the remainder is named, not
 hidden.
+
+## Week 12: HTTP-request tracing left as a documented gap
+
+Distributed tracing (Prometheus/Grafana/Jaeger, see `METRICS.md`) is
+real and live-verified end to end for `@Scheduled` background jobs -
+real spans, over real OTLP/HTTP, landing in a real Jaeger instance.
+HTTP request-level spans (`GET /v1/catalog` as its own trace) do not
+currently appear, despite `http.server.requests` recording correctly
+as a metric - something in Spring Boot 4.1.1's Observation-to-Tracing
+bridge for web requests specifically isn't wired the same way it is
+for scheduled tasks. Diagnosed as far as confirming the Observation
+itself fires (the metric exists) and that it's specifically the
+tracing bridge, not the exporter pipeline, that's missing for this one
+Observation type - the exporter pipeline itself is independently
+proven working by the scheduled-job spans reaching Jaeger. Chasing the
+exact missing wiring further would mean more bytecode-level
+archaeology into an increasingly narrow framework detail, for a gap
+that doesn't affect this project's own load-bearing point (a real,
+working OTLP pipeline to a real trace backend, which the scheduled-job
+spans already prove). Documented rather than either faked or endlessly
+chased.

@@ -47,8 +47,30 @@ spring:
     baseline-on-migrate: true
 
 management:
-  endpoints.web.exposure.include: health,info,metrics
+  endpoints.web.exposure.include: health,info,metrics,prometheus
   endpoint.health.probes.enabled: true
+  tracing:
+    # 100% sampling is a deliberate choice for this project's own real
+    # scale (a dev/portfolio load, not real production traffic) - a
+    # real high-traffic deployment would sample well below 1.0 to keep
+    # tracing overhead and backend storage bounded.
+    sampling.probability: 1.0
+  # REAL BUG, found by tracing silently never reaching Jaeger despite a
+  # real Tracer/SdkTracerProvider genuinely running (confirmed via real
+  # trace/span ids in the log correlation pattern): Spring Boot 4.1.1's
+  # actual property prefix for this is management.opentelemetry.tracing.
+  # export.otlp, not management.otlp.tracing (an older, 3.x-era
+  # assumption) - confirmed by decompiling OtlpTracingProperties'
+  # own @ConfigurationProperties annotation directly rather than
+  # guessing again, the same method this project always uses for a
+  # library API mismatch (the OpenSearch client, Jackson 3, MockMvc's
+  # autoconfigure package all needed the same real-classpath check).
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTLP_TRACING_ENDPOINT:http://localhost:4318/v1/traces}
+          transport: http
 
 # Placeholder values, environment-independent business config (not a secret).
 verdant:
