@@ -7,6 +7,8 @@ interface AuthContextValue {
   loading: boolean;
   setToken: (token: string) => void;
   logout: () => void;
+  /** ProfilePage calls this with the response updateProfile() already returned - no need to re-fetch /v1/buyers/me right after we just got the fresh row back. */
+  setBuyer: (buyer: Buyer) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -51,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setBuyer(null);
   }
 
-  return <AuthContext.Provider value={{ buyer, loading, setToken, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ buyer, loading, setToken, logout, setBuyer }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthContextValue {

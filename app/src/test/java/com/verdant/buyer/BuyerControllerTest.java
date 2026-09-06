@@ -24,6 +24,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -68,6 +69,39 @@ class BuyerControllerTest extends IntegrationTestBase {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.email").value(email))
             .andExpect(jsonPath("$.name").value("Test Buyer"));
+    }
+
+    @Test
+    void updateProfile_changesNameAndPhone_butNeverTheRealLoginEmail() throws Exception {
+        String email = "profile-buyer-" + UUID.randomUUID() + "@example.com";
+        UUID buyerId = registerRealBuyer(email);
+        String subjectId = jdbc.queryForObject("SELECT subject_id FROM buyers WHERE id = ?", String.class, buyerId);
+
+        mockMvc.perform(put("/v1/buyers/me")
+                .with(jwt().jwt(j -> j.subject(subjectId)))
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {"name":"Updated Name","phone":"9111111111"}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.name").value("Updated Name"))
+            .andExpect(jsonPath("$.phone").value("9111111111"))
+            .andExpect(jsonPath("$.email").value(email));
+    }
+
+    @Test
+    void updateProfile_blankName_isRejected() throws Exception {
+        String email = "blank-name-buyer-" + UUID.randomUUID() + "@example.com";
+        UUID buyerId = registerRealBuyer(email);
+        String subjectId = jdbc.queryForObject("SELECT subject_id FROM buyers WHERE id = ?", String.class, buyerId);
+
+        mockMvc.perform(put("/v1/buyers/me")
+                .with(jwt().jwt(j -> j.subject(subjectId)))
+                .contentType(APPLICATION_JSON)
+                .content("""
+                    {"name":"","phone":null}
+                    """))
+            .andExpect(status().isBadRequest());
     }
 
     @Test

@@ -37,4 +37,9 @@ public class BuyerRepository {
             INSERT INTO buyers (subject_id, email, name, phone) VALUES (?, ?, ?, ?) RETURNING id
             """, UUID.class, subjectId, email, name, phone);
     }
+
+    /** name/phone only - email is the Keycloak username (changing it is a real, separate cross-system operation, not done here), and there's no password field on this side to update at all (Keycloak owns credentials entirely). */
+    public void updateProfile(UUID id, String name, String phone) {
+        jdbc.update("UPDATE buyers SET name = ?, phone = ? WHERE id = ?", name, phone, id);
+    }
 }

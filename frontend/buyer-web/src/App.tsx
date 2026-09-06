@@ -11,6 +11,7 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { OrderDetailPage } from "./pages/OrderDetailPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { SellerOrdersPage } from "./pages/SellerOrdersPage";
 import { SellerLoginPage } from "./pages/SellerLoginPage";
 import "./App.css";
@@ -34,6 +35,7 @@ export default function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/orders/:orderId" element={<OrderDetailPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
                 <Route path="/seller/login" element={<SellerLoginPage />} />
                 <Route path="/seller/orders" element={<SellerOrdersPage />} />
               </Routes>

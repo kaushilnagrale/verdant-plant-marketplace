@@ -12,6 +12,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -52,6 +53,27 @@ public class BuyerController {
 
     @GetMapping("/me")
     public Buyer me(@AuthenticationPrincipal Jwt jwt) {
+        return currentBuyer(jwt);
+    }
+
+    public record UpdateProfileRequest(String name, String phone) { }
+
+    /**
+     * name/phone only, on purpose - email is the Keycloak username (the
+     * real login identifier), and changing it is a real cross-system
+     * operation (Keycloak's own user record, this row, and the unique
+     * constraint on buyers.email) this endpoint doesn't attempt. Password
+     * changes go through Keycloak entirely and have no representation
+     * here at all - a real, separate, unbuilt "security settings"
+     * concern, not silently folded into "profile info".
+     */
+    @PutMapping("/me")
+    public Buyer updateProfile(@AuthenticationPrincipal Jwt jwt, @RequestBody UpdateProfileRequest request) {
+        if (request.name() == null || request.name().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name is required");
+        }
+        Buyer current = currentBuyer(jwt);
+        buyers.updateProfile(current.id(), request.name(), request.phone());
         return currentBuyer(jwt);
     }
 

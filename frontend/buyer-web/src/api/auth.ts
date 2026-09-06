@@ -38,3 +38,12 @@ export async function fetchMe(): Promise<Buyer> {
   const res = await apiClient.get<Buyer>("/v1/buyers/me");
   return res.data;
 }
+
+// name/phone only - email is the real Keycloak login identifier and isn't
+// editable here (see BuyerController's own doc comment); there's no
+// password field on this side to update at all, Keycloak owns credentials
+// entirely.
+export async function updateProfile(name: string, phone: string): Promise<Buyer> {
+  const res = await apiClient.put<Buyer>("/v1/buyers/me", { name, phone: phone || null });
+  return res.data;
+}

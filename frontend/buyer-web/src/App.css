@@ -34,8 +34,21 @@ body {
   text-decoration: none;
 }
 
+/*
+ * flex + gap on the nav itself, not margin-left on ".site-header nav a"
+ * alone (the old rule) - that only ever spaced <a> tags apart from each
+ * other. The buyer badge (a Link) and the "Sign out" button
+ * (a plain <button>, no margin of its own) sat right against whatever
+ * came before them with zero gap, visually running together - the real
+ * bug this replaces, not just a badge-specific tweak.
+ */
+.site-header nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
 .site-header nav a {
-  margin-left: 20px;
   color: var(--text);
   text-decoration: none;
 }
@@ -282,9 +295,30 @@ textarea {
   font-size: 1rem;
 }
 
-.header-buyer-name {
-  margin-left: 20px;
+.auth-form input:disabled {
+  background: var(--bg);
   color: var(--muted);
+  cursor: not-allowed;
+}
+
+/* ".site-header nav a.header-buyer-badge", not just ".header-buyer-badge"
+   alone - needs to out-specify ".site-header nav a" above (which would
+   otherwise win and paint this link the same plain text color as every
+   other nav link) without resorting to !important. */
+.site-header nav a.header-buyer-badge {
+  display: inline-flex;
+  align-items: center;
+  background: #eef3ec;
+  color: var(--green-dark);
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.site-header nav a.header-buyer-badge:hover {
+  background: #e0ebe0;
+  color: var(--green-dark);
 }
 
 .order-list {

@@ -27,7 +27,9 @@ export function Header() {
         {buyer ? (
           <>
             <Link to="/orders">My orders</Link>
-            <span className="header-buyer-name">{buyer.name}</span>
+            <Link to="/profile" className="header-buyer-badge" title="View or edit your profile">
+              {buyer.name}
+            </Link>
             <button className="link-button" onClick={handleLogout}>
               Sign out
             </button>
