@@ -40,16 +40,21 @@ class SecurityConfigTest extends IntegrationTestBase {
 
     @Test
     void errorResponseFromAPermitAllEndpoint_keepsItsRealStatus_notMaskedAs401() {
-        // Missing destinationPincode - CheckoutService rejects with 400.
-        // Before the /error permitAll fix, this came back 401 instead.
+        // /v1/checkout itself is no longer permitAll (buyer accounts,
+        // Week 12+ - a real order now needs a real logged-in buyer), so
+        // this uses /v1/cart/quote instead - still permitAll, and
+        // CartPricingService rejects a non-positive quantity with the
+        // exact same ResponseStatusException(BAD_REQUEST) shape this test
+        // has always meant to probe. Before the /error permitAll fix,
+        // this came back 401 instead.
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         String body = """
-            {"buyerEmail":"security-test@example.com","lines":[]}
+            [{"listingId":"00000000-0000-0000-0000-000000000000","quantity":0}]
             """;
 
         ResponseEntity<String> response =
-            rest.postForEntity("/v1/checkout", new HttpEntity<>(body, headers), String.class);
+            rest.postForEntity("/v1/cart/quote", new HttpEntity<>(body, headers), String.class);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }

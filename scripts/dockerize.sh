@@ -29,6 +29,9 @@ docker run --rm -p 8080:8080 \
   -e SHIPROCKET_PASSWORD=dummy-password-for-dockerize-smoketest-only \
   -e SHIPROCKET_WEBHOOK_API_KEY=dummy-webhook-key-for-dockerize-smoketest-only \
   -e WEATHER_API_KEY=dummy-weather-key-for-dockerize-smoketest-only \
+  -e KEYCLOAK_ADMIN_BASE_URL=http://host.docker.internal:8081 \
+  -e KEYCLOAK_ADMIN_CLIENT_ID=verdant-backend \
+  -e KEYCLOAK_ADMIN_CLIENT_SECRET=buyer-backend-dev-secret \
   verdant:local
 # Note: RAZORPAY_KEY_ID is deliberately rzp_live_-shaped (not a real key) -
 # KeyModeGuard (added Day 35) refuses to boot the prod profile with a

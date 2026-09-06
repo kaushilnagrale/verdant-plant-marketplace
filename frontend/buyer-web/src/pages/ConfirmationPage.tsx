@@ -13,6 +13,9 @@ export function ConfirmationPage() {
         The seller will pack and dispatch it shortly - you'll see it move through the pipeline the same way it was
         built this week: reservation → payment → settlement → shipment, all handled automatically.
       </p>
+      <p>
+        <Link to={`/orders/${orderId}`}>Track this order</Link>
+      </p>
       <Link to="/">Keep browsing</Link>
     </div>
   );

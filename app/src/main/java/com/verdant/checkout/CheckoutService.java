@@ -64,9 +64,22 @@ public class CheckoutService {
         this.tx = new TransactionTemplate(txManager);
     }
 
+    /** Convenience overload for the many existing tests that predate buyer accounts and aren't about buyer identity - buyer_id is a real, valid null (an order with no account linked), never a fabricated id. The real production path (CheckoutController) always resolves and passes a real buyer id. */
     public CheckoutResult checkout(CheckoutRequest request) {
+        return checkout(null, request);
+    }
+
+    public CheckoutResult checkout(UUID buyerId, CheckoutRequest request) {
         if (request.destinationPincode() == null || request.destinationPincode().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "destinationPincode is required");
+        }
+        // Real delivery address, not just a pincode - a shipment can't
+        // actually be booked without these, the same gap ShiprocketGateway's
+        // own doc comment already flags (its own placeholder billing
+        // fields exist because checkout never captured this before).
+        if (isBlank(request.recipientName()) || isBlank(request.recipientPhone())
+                || isBlank(request.addressLine1()) || isBlank(request.city()) || isBlank(request.state())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A full delivery address is required");
         }
 
         // Real allocation, not just the pre-payment preview - a real order
@@ -116,13 +129,17 @@ public class CheckoutService {
         }
 
         try {
-            persistOrder(orderId, request.buyerEmail(), request.destinationPincode(), quote, razorpayOrderId);
+            persistOrder(orderId, buyerId, request, quote, razorpayOrderId);
         } catch (RuntimeException e) {
             reservations.releaseByOrder(orderId);
             throw e;
         }
 
         return new CheckoutResult(orderId, razorpayOrderId, razorpayProps.keyId(), quote.total());
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private void reserveStock(UUID orderId, List<CartLine> lines) {
@@ -146,16 +163,18 @@ public class CheckoutService {
      * internally, which the Spring AOP proxy would never intercept, per the
      * same self-invocation lesson from Day 26/28) makes this one atomic unit.
      */
-    private void persistOrder(UUID orderId, String buyerEmail, String destinationPincode,
+    private void persistOrder(UUID orderId, UUID buyerId, CheckoutRequest request,
                                CartQuote quote, String razorpayOrderId) {
         tx.executeWithoutResult(status -> {
             Instant expiresAt = Instant.now().plus(CHECKOUT_WINDOW);
             jdbc.update("""
-                INSERT INTO orders (id, buyer_email, status, total_amount, currency, razorpay_order_id,
-                                     expires_at, destination_pincode)
-                VALUES (?, ?, 'CREATED', ?, ?, ?, ?, ?)
-                """, orderId, buyerEmail, quote.total().amount(), quote.total().currency().getCurrencyCode(),
-                razorpayOrderId, Timestamp.from(expiresAt), destinationPincode);
+                INSERT INTO orders (id, buyer_id, buyer_email, status, total_amount, currency, razorpay_order_id,
+                                     expires_at, destination_pincode, recipient_name, recipient_phone,
+                                     address_line1, address_line2, city, state)
+                VALUES (?, ?, ?, 'CREATED', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, orderId, buyerId, request.buyerEmail(), quote.total().amount(), quote.total().currency().getCurrencyCode(),
+                razorpayOrderId, Timestamp.from(expiresAt), request.destinationPincode(), request.recipientName(),
+                request.recipientPhone(), request.addressLine1(), request.addressLine2(), request.city(), request.state());
 
             // Durable record of what was actually ordered - previously only
             // the aggregate total was persisted, and the per-line breakdown

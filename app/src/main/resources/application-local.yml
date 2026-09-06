@@ -48,3 +48,15 @@ verdant:
     review-threshold: 0.012
   search:
     opensearch-uri: http://localhost:9200
+
+# Matches the "verdant-backend" service-account client scripts/setup-keycloak.sh
+# creates locally - a dev-only secret, the same real treatment as verdant-seller's
+# own "dev-secret" already in this file's own spirit (not the gitignored
+# application-local-secrets.yml, since this is a fake-but-functional local
+# credential this project's own setup script creates, not a real one).
+keycloak:
+  admin:
+    base-url: http://localhost:8081
+    realm: verdant
+    client-id: verdant-backend
+    client-secret: buyer-backend-dev-secret

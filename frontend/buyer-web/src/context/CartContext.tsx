@@ -10,6 +10,7 @@ interface CartContextValue {
   items: CartItem[];
   addItem: (item: CartItem) => void;
   removeItem: (listingId: string) => void;
+  updateQuantity: (listingId: string, quantity: number) => void;
   clear: () => void;
 }
 
@@ -52,12 +53,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setItems((prev) => prev.filter((i) => i.listingId !== listingId));
   }
 
+  // Sets the exact quantity for a line (the +/- stepper on the cart page
+  // calls this with quantity +/- 1). Floors at 1 rather than removing the
+  // item at 0 - "Remove" is already a separate, explicit action, and a
+  // stepper silently deleting a row it was just decrementing would be a
+  // surprising side effect. The real >0 check happens again server-side
+  // (CartPricingService) regardless - this is just what stops the "-"
+  // button from ever asking for something already invalid.
+  function updateQuantity(listingId: string, quantity: number) {
+    if (quantity < 1) {
+      return;
+    }
+    setItems((prev) => prev.map((i) => (i.listingId === listingId ? { ...i, quantity } : i)));
+  }
+
   function clear() {
     setItems([]);
   }
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, clear }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateQuantity, clear }}>
       {children}
     </CartContext.Provider>
   );

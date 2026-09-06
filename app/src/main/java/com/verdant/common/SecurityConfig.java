@@ -45,7 +45,19 @@ public class SecurityConfig {
                 // (management.server.port) rather than share the public
                 // API port at all - not done here, real, separate scope.
                 .requestMatchers("/actuator/health/**", "/actuator/info", "/actuator/prometheus").permitAll()
-                .requestMatchers("/v1/cart/**", "/v1/checkout/**", "/v1/webhooks/**", "/v1/catalog/**", "/v1/search/**", "/v1/assistant/**").permitAll()
+                .requestMatchers("/v1/cart/**", "/v1/webhooks/**", "/v1/catalog/**", "/v1/search/**", "/v1/assistant/**").permitAll()
+                // Buyer accounts: registering one is necessarily
+                // unauthenticated (there's no JWT yet); everything else
+                // under /v1/buyers/** (profile, order history, tracking)
+                // is NOT listed here on purpose - it falls through to the
+                // default anyRequest().authenticated() below, same as
+                // every seller-facing endpoint.
+                .requestMatchers("/v1/buyers/register").permitAll()
+                // Checkout now requires a real logged-in buyer (previously
+                // permitAll, back when buyerEmail was just a free-text
+                // field and there was no buyer identity to check against) -
+                // CheckoutController resolves the real buyer id from the
+                // JWT the same way SellerOrderController resolves a seller.
                 // Not obvious, found by real end-to-end testing (Week 7) rather
                 // than any prior test - every prior error-path test called the
                 // service method directly or used MockMvc, neither of which

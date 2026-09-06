@@ -61,6 +61,74 @@ export interface CheckoutResult {
   totalAmount: Money;
 }
 
+export interface DeliveryAddress {
+  recipientName: string;
+  recipientPhone: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  state: string;
+}
+
+export interface Buyer {
+  id: string;
+  subjectId: string;
+  email: string;
+  name: string;
+  phone: string | null;
+}
+
+export interface BuyerOrderItem {
+  listingId: string;
+  productName: string;
+  sellerBusinessName: string;
+  quantity: number;
+  lineTotal: number;
+}
+
+export interface BuyerOrderSummary {
+  orderId: string;
+  status: string;
+  totalAmount: number;
+  createdAt: string;
+  items: BuyerOrderItem[];
+}
+
+export interface ShipmentTrackingEvent {
+  status: string;
+  location: string | null;
+  remark: string | null;
+  occurredAt: string;
+}
+
+export interface ShipmentTracking {
+  shipmentId: string;
+  sellerBusinessName: string;
+  status: string;
+  courier: string | null;
+  awbNumber: string | null;
+  transitDays: number | null;
+  dispatchedAt: string | null;
+  deliveredAt: string | null;
+  events: ShipmentTrackingEvent[];
+}
+
+export interface BuyerOrderDetail {
+  orderId: string;
+  status: string;
+  totalAmount: number;
+  createdAt: string;
+  recipientName: string;
+  recipientPhone: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  items: BuyerOrderItem[];
+  shipments: ShipmentTracking[];
+}
+
 export interface SellerOrderItem {
   listingId: string;
   productName: string;
