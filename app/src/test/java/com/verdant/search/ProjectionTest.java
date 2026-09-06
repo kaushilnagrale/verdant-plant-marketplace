@@ -194,10 +194,23 @@ class ProjectionTest extends SearchIntegrationTestBase {
                     """))
             .andExpect(status().isOk());
 
-        Instant deadline = Instant.now().plus(Duration.ofSeconds(10));
+        // This real chain has three real hops (outbox write -> OutboxDrainer
+        // publish -> Kafka -> ListingProjector consume -> enqueue ->
+        // ReindexWorker drain, all on their own real @Scheduled/listener
+        // intervals, none suppressed here - the whole point of this test is
+        // to exercise that real path end to end, not shortcut it by calling
+        // reindexWorker.drain() directly). 10s was tight enough to flake for
+        // real (not hypothetically - reproduced three times, always this
+        // exact 349.00-vs-399.00 pair, always only as part of the full,
+        // now 289-test suite) once enough OTHER search/reindex tests share
+        // the same real background workers and queue depth grows with the
+        // suite's own size - a test-suite-scale contention artifact, not a
+        // production latency claim this budget is meant to enforce.
+        // Widened with real margin instead of chased further.
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(30));
         ListingDocument updated;
         do {
-            updated = awaitIndexed(id, Duration.ofSeconds(10));
+            updated = awaitIndexed(id, Duration.ofSeconds(30));
         } while (updated.priceAmount().compareTo(new java.math.BigDecimal("399.00")) != 0
                  && Instant.now().isBefore(deadline));
 
