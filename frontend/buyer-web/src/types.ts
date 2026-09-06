@@ -17,6 +17,34 @@ export interface CatalogListingDetail extends CatalogListingSummary {
   handlingTimeHours: number;
 }
 
+// Mirrors SearchHit/SearchResults/FacetCounts (com.verdant.search.query) -
+// the real, location-aware endpoint (/v1/search) the plain catalog grid
+// above doesn't use at all. Deliberately narrower than the catalog
+// summary: search doesn't return a seller name (the index doesn't carry
+// one), so results show product/price/origin only, not fabricated.
+export interface SearchHit {
+  listingId: string;
+  sellerId: string;
+  displayName: string;
+  priceAmount: number;
+  inStock: boolean;
+  originZone: string;
+  score: number;
+}
+
+export interface FacetCounts {
+  lightRequirement: Record<string, number>;
+  sizeTier: Record<string, number>;
+  petSafe: Record<string, number>;
+  priceRange: Record<string, number>;
+  deliveryDays: Record<string, number>;
+}
+
+export interface SearchResults {
+  hits: SearchHit[];
+  facets: FacetCounts;
+}
+
 export interface CartLine {
   listingId: string;
   quantity: number;

@@ -49,7 +49,21 @@ public class ListingSearchService {
     }
 
     public SearchResults search(String text, String destinationPincode) throws IOException {
+        // Real bug, found by actually searching against an unrecognized
+        // pincode rather than assuming every caller-supplied one is
+        // already valid: zoneFor() used to be a bare queryForObject(),
+        // which throws EmptyResultDataAccessException (an uncaught 500)
+        // for a pincode with no real pincode_zones row - a genuine buyer
+        // typo, or a real pincode this platform doesn't yet have zone
+        // data for, is not a server error. Same honest shape as
+        // AllocationEngine's own "unfulfillable" outcome elsewhere in
+        // this project: nothing can be shown as deliverable to a
+        // destination this search can't even place, so an empty,
+        // zero-hit result is the true answer, not a 500.
         String destZone = zoneFor(destinationPincode);
+        if (destZone == null) {
+            return new SearchResults(List.of(), new FacetCounts(Map.of(), Map.of(), Map.of(), Map.of(), Map.of()));
+        }
         Map<String, Integer> transitDaysByOriginZone = transitDaysTo(destZone);
 
         var response = opensearch.search(s -> s
@@ -184,8 +198,10 @@ public class ListingSearchService {
         return new SearchHit(doc.listingId(), doc.sellerId(), doc.displayName(), doc.priceAmount(), doc.inStock(), doc.originZone(), score);
     }
 
+    /** null, not a thrown exception, for a pincode with no real pincode_zones row - see search()'s own comment for why that's a real, normal outcome here, not a server error. */
     private String zoneFor(String pincode) {
-        return jdbc.queryForObject("SELECT zone FROM pincode_zones WHERE pincode = ?", String.class, pincode);
+        return jdbc.query("SELECT zone FROM pincode_zones WHERE pincode = ?", (rs, rowNum) -> rs.getString("zone"), pincode)
+            .stream().findFirst().orElse(null);
     }
 
     /** Every origin zone that can reach destZone at all, and how many days it takes - compared per-document against that document's own max_transit_days. */

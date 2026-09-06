@@ -216,12 +216,21 @@ textarea {
 }
 
 .preview-panel,
-.checkout-panel {
+.checkout-panel,
+.search-bar {
   display: flex;
   align-items: center;
   gap: 12px;
   margin: 20px 0;
   flex-wrap: wrap;
+}
+
+.search-bar input[aria-label="Search"] {
+  flex: 1 1 260px;
+}
+
+.search-bar input[aria-label="Delivery pincode"] {
+  flex: 0 1 160px;
 }
 
 .split-preview {

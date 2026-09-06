@@ -218,4 +218,23 @@ class RankingTest extends SearchIntegrationTestBase {
 
         assertThat(search("boston fern", AllocationFixtures.REMOTE_PINCODE).hits()).isEmpty();
     }
+
+    /**
+     * Real bug, found by actually searching against a pincode with no
+     * real pincode_zones row, not assumed: zoneFor() used to be a bare
+     * queryForObject(), which throws EmptyResultDataAccessException - an
+     * uncaught 500 - for exactly this input. A buyer's typo, or a real
+     * pincode this platform doesn't have zone data for yet, is a normal
+     * outcome (the same honest "nothing here is deliverable" shape as
+     * AllocationEngine's own unfulfillable list), not a server error.
+     */
+    @Test
+    void unrecognizedPincode_returnsEmptyResults_ratherThanFailing() throws Exception {
+        UUID seller = seedSeller("Ranking Unknown Pincode Nursery " + UUID.randomUUID(), AllocationFixtures.LOCAL_PINCODE);
+        indexListing(seller, moneyPlantId, "299.00", 5);
+
+        SearchResults results = search("money plant", "000000");
+
+        assertThat(results.hits()).isEmpty();
+    }
 }
